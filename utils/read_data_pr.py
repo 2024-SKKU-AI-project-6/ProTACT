@@ -1,5 +1,7 @@
 import pickle
 import nltk
+nltk.download("punkt")
+nltk.download("averaged_perceptron_tagger")
 import re
 import numpy as np
 import pandas as pd
