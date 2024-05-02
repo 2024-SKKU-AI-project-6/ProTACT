@@ -17,7 +17,8 @@ import numpy as np
 from scipy.stats import kendalltau, spearmanr, pearsonr
 from six import string_types
 from six.moves import xrange as range
-from sklearn.metrics import confusion_matrix, f1_score, SCORERS
+from sklearn.metrics import confusion_matrix, f1_score
+from sklearn.metrics._scorer import _SCORERS
 # from sklearn.metrics import mean_squared_error
 
 
@@ -216,7 +217,7 @@ def use_score_func(func_name, y_true, y_pred):
     creating the scorer. This applies any sign-flipping that was specified by
     `make_scorer` when the scorer was created.
     """
-    scorer = SCORERS[func_name]
+    scorer = _SCORERS[func_name]
     return scorer._sign * scorer._score_func(y_true, y_pred, **scorer._kwargs)
 
 
