@@ -5,12 +5,12 @@ class Configs:
     LSTM_UNITS = 100
     EMBEDDING_DIM = 50
     PRETRAINED_EMBEDDING = True
-    EMBEDDING_PATH = 'embeddings/glove.6B.50d.txt'
+    EMBEDDING_PATH = './../embeddings/glove.6B.50d.txt'
     VOCAB_SIZE = 4000
-    DATA_PATH = 'data/cross_prompt_attributes/'
-    FEATURES_PATH = 'data/hand_crafted_v3.csv'
-    READABILITY_PATH = 'data/allreadability.pickle'
+    DATA_PATH = './../data/cross_prompt_attributes/'
+    FEATURES_PATH = './../data/hand_crafted_v3.csv'
+    READABILITY_PATH = './../data/allreadability.pickle'
     PROMPT_PATH = 'data/prompt_info_pp.csv'
     EPOCHS = 50
     BATCH_SIZE = 10
-    OUTPUT_PATH = 'outputs/'
+    OUTPUT_PATH = './../outputs/'
