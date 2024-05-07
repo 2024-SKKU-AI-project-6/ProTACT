@@ -1,5 +1,6 @@
 from metrics.metrics import *
 from utils.general_utils import separate_attributes_for_scoring, separate_and_rescale_attributes_for_scoring
+import torch
 
 '''import os
 cur_dir = os.getcwd()
@@ -7,6 +8,7 @@ ckpt_dir = 'checkpoints'
 dir = os.path.join(cur_dir, ckpt_dir)
 os.makedirs(dir, exist_ok=True)
 '''
+
 
 class Evaluator():
 
@@ -18,8 +20,10 @@ class Evaluator():
         self.X_dev_prompt_ids, self.X_test_prompt_ids = X_dev_prompt_ids, X_test_prompt_ids
         self.Y_dev, self.Y_test = Y_dev, Y_test
         self.Y_dev_upscale = Y_dev * 100
-        self.Y_dev_org = separate_attributes_for_scoring(self.Y_dev_upscale, self.X_dev_prompt_ids)
-        self.Y_test_org = separate_and_rescale_attributes_for_scoring(Y_test, self.X_test_prompt_ids)
+        self.Y_dev_org = separate_attributes_for_scoring(
+            self.Y_dev_upscale, self.X_dev_prompt_ids)
+        self.Y_test_org = separate_and_rescale_attributes_for_scoring(
+            Y_test, self.X_test_prompt_ids)
         self.best_dev_kappa_mean = -1
         self.best_test_kappa_mean = -1
         self.best_dev_kappa_set = {}
@@ -49,12 +53,18 @@ class Evaluator():
     def evaluate(self, model, epoch, print_info=True):
         self.current_epoch = epoch
 
-        dev_pred = model.predict(self.dev_features_list, batch_size=32)
-        test_pred = model.predict(self.test_features_list, batch_size=32)
+        model.eval()
+        with torch.no_grad():
+            dev_pred = model(*[torch.from_numpy(feat)
+                             for feat in self.dev_features_list]).numpy()
+            test_pred = model(*[torch.from_numpy(feat)
+                              for feat in self.test_features_list]).numpy()
 
         dev_pred_int = dev_pred * 100
-        dev_pred_dict = separate_attributes_for_scoring(dev_pred_int, self.X_dev_prompt_ids)
-        test_pred_dict = separate_and_rescale_attributes_for_scoring(test_pred, self.X_test_prompt_ids)
+        dev_pred_dict = separate_attributes_for_scoring(
+            dev_pred_int, self.X_dev_prompt_ids)
+        test_pred_dict = separate_and_rescale_attributes_for_scoring(
+            test_pred, self.X_test_prompt_ids)
 
         pearson_dev = {key: self.calc_pearson(dev_pred_dict[key], self.Y_dev_org[key]) for key in
                        dev_pred_dict.keys()}
@@ -64,12 +74,12 @@ class Evaluator():
         spearman_dev = {key: self.calc_spearman(dev_pred_dict[key], self.Y_dev_org[key]) for key in
                         dev_pred_dict.keys()}
         spearman_test = {key: self.calc_spearman(test_pred_dict[key], self.Y_test_org[key]) for key in
-                        test_pred_dict.keys()}
+                         test_pred_dict.keys()}
 
         self.kappa_dev = {key: self.calc_kappa(dev_pred_dict[key], self.Y_dev_org[key]) for key in
-                        dev_pred_dict.keys()}
+                          dev_pred_dict.keys()}
         self.kappa_test = {key: self.calc_kappa(test_pred_dict[key], self.Y_test_org[key]) for key in
-                         test_pred_dict.keys()}
+                           test_pred_dict.keys()}
 
         self.dev_kappa_mean = np.mean(list(self.kappa_dev.values()))
         self.test_kappa_mean = np.mean(list(self.kappa_test.values()))
@@ -80,9 +90,11 @@ class Evaluator():
             self.best_dev_kappa_set = self.kappa_dev
             self.best_test_kappa_set = self.kappa_test
             self.best_dev_epoch = epoch
-            '''file_path = os.path.join(dir, "checkpoint_best"+str(self.test_prompt_id)+"_"+str(self.seed)+".ckpt")
-            model.save_weights(file_path) # save the best model
-            print("Save best model to ", file_path)'''
+            # Save the best model using PyTorch's torch.save
+            torch.save(model.state_dict(),
+                       f"checkpoint_best{self.test_prompt_id}_{self.seed}.pth")
+            print(
+                f"Save best model to checkpoint_best{self.test_prompt_id}_{self.seed}.pth")
         if print_info:
             self.print_info()
 
@@ -90,23 +102,25 @@ class Evaluator():
         print('CURRENT EPOCH: {}'.format(self.current_epoch))
         print('[DEV] AVG QWK: {}'.format(round(self.dev_kappa_mean, 3)))
         for att in self.kappa_dev.keys():
-            print('[DEV] {} QWK: {}'.format(att, round(self.kappa_dev[att], 3)))
-        print(
-            '------------------------')
+            print('[DEV] {} QWK: {}'.format(
+                att, round(self.kappa_dev[att], 3)))
+        print('------------------------')
         print('[TEST] AVG QWK: {}'.format(round(self.test_kappa_mean, 3)))
         for att in self.kappa_test.keys():
-            print('[TEST] {} QWK: {}'.format(att, round(self.kappa_test[att], 3)))
-        print(
-            '------------------------')
-        print('[BEST TEST] AVG QWK: {}, {{epoch}}: {}'.format(round(self.best_test_kappa_mean, 3), self.best_dev_epoch))
+            print('[TEST] {} QWK: {}'.format(
+                att, round(self.kappa_test[att], 3)))
+        print('------------------------')
+        print('[BEST TEST] AVG QWK: {}, {{epoch}}: {}'.format(
+            round(self.best_test_kappa_mean, 3), self.best_dev_epoch))
         for att in self.best_test_kappa_set.keys():
-            print('[BEST TEST] {} QWK: {}'.format(att, round(self.best_test_kappa_set[att], 3)))
-        print(
-            '--------------------------------------------------------------------------------------------------------------------------')
+            print('[BEST TEST] {} QWK: {}'.format(
+                att, round(self.best_test_kappa_set[att], 3)))
+        print('--------------------------------------------------------------------------------------------------------------------------')
 
     def print_final_info(self):
-        print('[BEST TEST] AVG QWK: {}, {{epoch}}: {}'.format(round(self.best_test_kappa_mean, 3), self.best_dev_epoch))
+        print('[BEST TEST] AVG QWK: {}, {{epoch}}: {}'.format(
+            round(self.best_test_kappa_mean, 3), self.best_dev_epoch))
         for att in self.best_test_kappa_set.keys():
-            print('[BEST TEST] {} QWK: {}'.format(att, round(self.best_test_kappa_set[att], 3)))
-        print(
-            '--------------------------------------------------------------------------------------------------------------------------')
+            print('[BEST TEST] {} QWK: {}'.format(
+                att, round(self.best_test_kappa_set[att], 3)))
+        print('--------------------------------------------------------------------------------------------------------------------------')
