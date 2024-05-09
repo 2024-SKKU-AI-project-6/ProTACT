@@ -2,7 +2,6 @@ import torch
 import torch.nn as nn
 
 
-
 class ZeroMaskedEntries(nn.Module):
     def __init__(self, input_shape):
         self.support_mask = True
@@ -10,8 +9,7 @@ class ZeroMaskedEntries(nn.Module):
         self.output_dim = input_shape[1]
         self.repeat_dim = input_shape[2]
 
-
-    def call(self, x, mask=None):
+    def forward(self, x, mask=None):
         if mask == None:
             return x
         mask = mask.type(torch.float32)

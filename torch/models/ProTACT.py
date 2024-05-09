@@ -15,7 +15,7 @@ class ProTACT(nn.Module):
         super(ProTACT, self).__init__()
         self.embedding_dim = configs.EMBEDDING_DIM  # 50
         self.dropout_prob = configs.DROPOUT  # 0.5
-        self.filters = configs.CNN_FILTERS  # 5
+        self.filters = configs.CNN_FILTERS  # 100
         self.kernel_size = configs.CNN_KERNEL_SIZE  # 5
         self.lstm_units = configs.LSTM_UNITS  # 100
         self.num_heads = num_heads  # 2
@@ -24,8 +24,10 @@ class ProTACT(nn.Module):
         self.essay_pos_embedding = nn.Embedding(
             pos_vocab_size, self.embedding_dim, padding_idx=0)
         self.essay_pos_dropout = nn.Dropout(self.dropout_prob)
+        # essay_pos_dropout.shape: (input.shape, embedding_dim) => (none, 4850, 50)
         self.essay_pos_conv = nn.Conv1d(
             self.embedding_dim, self.filters, self.kernel_size, padding='valid')
+        # essay_pos_conv.
         self.essay_pos_attention = Attention(
             input_shape=(None, None, self.filters))
 
@@ -35,11 +37,11 @@ class ProTACT(nn.Module):
             readability_feature_count,  self.filters)
 
         self.essay_pos_MA = nn.ModuleList(
-            [MultiHeadAttention(self.filters, num_heads) for _ in range(output_dim)])
-        self.essay_pos_MA_LSTM = nn.ModuleList(
-            [nn.LSTM(self.filters,  self.lstm_units) for _ in range(output_dim)])
+            [MultiHeadAttention(100, num_heads) for _ in range(output_dim)])
+        self.essay_pos_MA_LSTM = nn.ModuleList(  # batch_first=True for (batch_size, sequence_length, input_size) same as keras
+            [nn.LSTM(input_size=100,  hidden_size=self.lstm_units, batch_first=True) for _ in range(output_dim)])
         self.easay_pos_avg_MA_LSTM = nn.ModuleList(
-            [Attention(self.lstm_units) for _ in range(output_dim)])
+            [Attention(input_shape=(None, None, self.filters)) for _ in range(output_dim)])
 
         # Prompt Representation
         self.prompt_embedding = nn.Embedding.from_pretrained(
@@ -53,21 +55,34 @@ class ProTACT(nn.Module):
             input_shape=(None, None, self.filters))
 
         self.prompt_MA = MultiHeadAttention(100, num_heads)
-        self.prompt_MA_lstm = nn.LSTM(self.lstm_units, return_sequences=True)
-        self.prompt_avg_MA_lstm = Attention((None, None, self.lstm_units))
+        self.prompt_MA_lstm = nn.LSTM(
+            input_size=100,  hidden_size=self.lstm_units, batch_first=True)
+        self.prompt_avg_MA_lstm = Attention(
+            input_shape=(None, None, self.filters))
 
         self.es_pr_MA_list = nn.ModuleList(
             [MultiHeadAttention_PE(self.filters, num_heads) for _ in range(output_dim)])
         self.es_pr_MA_lstm_list = nn.ModuleList(
-            [nn.LSTM(self.lstm_units, return_sequences=True) for _ in range(output_dim)])
+            [nn.LSTM(input_size=100,  hidden_size=self.lstm_units, batch_first=True) for _ in range(output_dim)])
         self.es_pr_avg_lstm_list = nn.ModuleList(
-            [Attention() for _ in range(output_dim)])
+            [Attention(input_shape=(None, None, self.filters)) for _ in range(output_dim)])
 
         self.final_dense_list = nn.ModuleList([nn.Linear(
             2 * self.lstm_units + linguistic_feature_count + readability_feature_count, 1) for _ in range(output_dim)])
 
     def forward(self, pos_input, prompt_word_input, prompt_pos_input, linguistic_input, readability_input):
         # Essay Representation
+
+        #     train_dataset = TensorDataset(
+        #     torch.from_numpy(X_train_pos),
+        #     torch.from_numpy(X_train_prompt),
+        #     torch.from_numpy(X_train_prompt_pos),
+        #     torch.from_numpy(X_train_linguistic_features),
+        #     torch.from_numpy(X_train_readability),
+        #     torch.from_numpy(Y_train)
+        # )
+
+        # pos_input = [(None, 4850)]
         pos_x = self.pos_embedding(pos_input)
         pos_x_maskedout = ZeroMaskedEntries()(pos_x)
         pos_drop_x = self.pos_dropout(pos_x_maskedout)

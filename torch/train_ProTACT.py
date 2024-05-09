@@ -95,7 +95,7 @@ def main():
         embedd_dict, embedd_dim, _ = load_word_embedding_dict(embedding_path)
         embedd_matrix = build_embedd_table(
             word_vocab, embedd_dict, embedd_dim, caseless=True)
-        embed_table = [embedd_matrix]
+        embed_table = embedd_matrix
     else:
         embed_table = None
 
