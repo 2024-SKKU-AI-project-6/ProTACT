@@ -262,6 +262,7 @@ def main():
         print(f'Epoch {epoch + 1}/{epochs}')
         start_time = time.time()
 
+        # train
         model.train()
         train_loss = 0.0
         for batch_data in train_loader:
@@ -275,6 +276,7 @@ def main():
             train_loss += loss.item() * batch_data[0].size(0)
         train_loss /= len(train_loader.dataset)
 
+        # validate
         model.eval()
         val_loss = 0.0
         with torch.no_grad():
@@ -288,6 +290,7 @@ def main():
 
         custom_hist.update(train_loss, val_loss)
 
+        # evaluate
         tt_time = time.time() - start_time
         print(f"Training one epoch in {tt_time:.3f} s")
         evaluator.evaluate(model, epoch + 1)

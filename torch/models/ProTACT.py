@@ -13,20 +13,21 @@ class ProTACT(nn.Module):
     def __init__(self, pos_vocab_size, vocab_size, maxnum, maxlen, readability_feature_count,
                  linguistic_feature_count, configs, output_dim, num_heads, embedding_weights):
         super(ProTACT, self).__init__()
-        self.embedding_dim = configs.EMBEDDING_DIM
-        self.dropout_prob = configs.DROPOUT
-        self.filters = configs.CNN_FILTERS
-        self.kernel_size = configs.CNN_KERNEL_SIZE
-        self.lstm_units = configs.LSTM_UNITS
-        self.num_heads = num_heads
+        self.embedding_dim = configs.EMBEDDING_DIM  # 50
+        self.dropout_prob = configs.DROPOUT  # 0.5
+        self.filters = configs.CNN_FILTERS  # 5
+        self.kernel_size = configs.CNN_KERNEL_SIZE  # 5
+        self.lstm_units = configs.LSTM_UNITS  # 100
+        self.num_heads = num_heads  # 2
 
         # Essay Representation
         self.essay_pos_embedding = nn.Embedding(
             pos_vocab_size, self.embedding_dim, padding_idx=0)
         self.essay_pos_dropout = nn.Dropout(self.dropout_prob)
         self.essay_pos_conv = nn.Conv1d(
-            self.embedding_dim,  self.filters,  self.kernel_size)
-        self.essay_pos_attention = Attention(self.essay_pos_conv)
+            self.embedding_dim, self.filters, self.kernel_size, padding='valid')
+        self.essay_pos_attention = Attention(
+            input_shape=(None, None, self.filters))
 
         self.essay_linquistic = nn.Linear(
             linguistic_feature_count,  self.filters)
@@ -47,12 +48,13 @@ class ProTACT(nn.Module):
             pos_vocab_size, self.embedding_dim, padding_idx=0)
         self.prompt_dropout = nn.Dropout(self.dropout_prob)
         self.prompt_cnn = nn.Conv1d(
-            self.embedding_dim, self.cnn_filters, self.cnn_kernel_size, padding='valid')
-        self.prompt_attention = Attention(self.prompt_cnn)
+            self.embedding_dim, self.filters, self.kernel_size, padding='valid')
+        self.prompt_attention = Attention(
+            input_shape=(None, None, self.filters))
 
         self.prompt_MA = MultiHeadAttention(100, num_heads)
         self.prompt_MA_lstm = nn.LSTM(self.lstm_units, return_sequences=True)
-        self.prompt_avg_MA_lstm = Attention(self.prompt_MA_lstm)
+        self.prompt_avg_MA_lstm = Attention((None, None, self.lstm_units))
 
         self.es_pr_MA_list = nn.ModuleList(
             [MultiHeadAttention_PE(self.filters, num_heads) for _ in range(output_dim)])
@@ -65,7 +67,7 @@ class ProTACT(nn.Module):
             2 * self.lstm_units + linguistic_feature_count + readability_feature_count, 1) for _ in range(output_dim)])
 
     def forward(self, pos_input, prompt_word_input, prompt_pos_input, linguistic_input, readability_input):
-        # 1. Essay Representation
+        # Essay Representation
         pos_x = self.pos_embedding(pos_input)
         pos_x_maskedout = ZeroMaskedEntries()(pos_x)
         pos_drop_x = self.pos_dropout(pos_x_maskedout)
@@ -81,7 +83,7 @@ class ProTACT(nn.Module):
         pos_avg_MA_lstm_list = [self.pos_avg_MA_lstm_list[i](
             pos_MA_lstm_list[i]) for i in range(self.output_dim)]
 
-        # 2. Prompt Representation
+        # Prompt Representation
         prompt = self.prompt_embedding(prompt_word_input)
         prompt_maskedout = ZeroMaskedEntries()(prompt)
         prompt_pos = self.prompt_pos_embedding(prompt_pos_input)
