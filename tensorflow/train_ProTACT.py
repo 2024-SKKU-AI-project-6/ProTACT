@@ -188,12 +188,28 @@ def main():
     custom_hist = CustomHistory() 
     custom_hist.init() 
     
+    # 저장한 체크포인트 있다면: 이어서 학습
+    # model.load_weights('Checkpoint/tensor{epoch}')
+    
+    checkpoint = tf.keras.callbacks.ModelCheckpoint(
+        # epoch 마다 파일명 다르게 저장
+        filepath='Checkpoint/tensor{epoch}',
+        
+        # epoch 마다 weights 들만 저장
+        save_freq='epoch',
+        save_weights_only = True,
+        
+        # validation accruary 가 최대일때만 저장 
+        monitor='val_acc',
+        mode='max'
+    )
+    
     for ii in range(epochs):
         print('Epoch %s/%s' % (str(ii + 1), epochs))
         start_time = time.time()
         model.fit(
             train_features_list,
-            Y_train, batch_size=batch_size, epochs=1, verbose=0, shuffle=True, validation_data=(dev_features_list,Y_dev),callbacks=[custom_hist])
+            Y_train, batch_size=batch_size, epochs=5, verbose=0, shuffle=True, validation_data=(dev_features_list,Y_dev),callbacks=[custom_hist,checkpoint])
         tt_time = time.time() - start_time
         print("Training one epoch in %.3f s" % tt_time)
         evaluator.evaluate(model, ii + 1)
