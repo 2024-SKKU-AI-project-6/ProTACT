@@ -226,6 +226,13 @@ def main():
     )
     dev_loader = DataLoader(dev_dataset, batch_size=batch_size)
 
+    dev_features_list = [
+        torch.from_numpy(X_dev_pos),
+        torch.from_numpy(X_dev_prompt),
+        torch.from_numpy(X_dev_prompt_pos),
+        torch.from_numpy(X_dev_linguistic_features),
+        torch.from_numpy(X_dev_readability)
+    ]
     test_features_list = [
         torch.from_numpy(X_test_pos),
         torch.from_numpy(X_test_prompt),
@@ -251,6 +258,7 @@ def main():
 
     evaluator = AllAttEvaluator(
         test_prompt_id, dev_data['prompt_ids'], test_data['prompt_ids'],
+        [x.numpy() for x in dev_features_list],
         [x.numpy() for x in test_features_list], Y_dev, Y_test, seed
     )
 

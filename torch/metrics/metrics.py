@@ -18,7 +18,7 @@ from scipy.stats import kendalltau, spearmanr, pearsonr
 from six import string_types
 from six.moves import xrange as range
 from sklearn.metrics import confusion_matrix, f1_score
-from sklearn.metrics._scorer import _SCORERS
+from sklearn.metrics._scorer import SCORERS
 # from sklearn.metrics import mean_squared_error
 
 
@@ -68,7 +68,7 @@ def kappa(y_true, y_pred, weights=None, allow_off_by_one=False):
     logger = logging.getLogger(__name__)
 
     # Ensure that the lists are both the same length
-    assert(len(y_true) == len(y_pred))
+    assert (len(y_true) == len(y_pred))
 
     # This rather crazy looking typecast is intended to work as follows:
     # If an input is an int, the operations will have no effect.
@@ -141,7 +141,6 @@ def kappa(y_true, y_pred, weights=None, allow_off_by_one=False):
     return k
 
 
-
 def kendall_tau(y_true, y_pred):
     """
     Calculate Kendall's tau between ``y_true`` and ``y_pred``.
@@ -155,7 +154,6 @@ def kendall_tau(y_true, y_pred):
     """
     ret_score = kendalltau(y_true, y_pred)[0]
     return ret_score if not np.isnan(ret_score) else 0.0
-
 
 
 def spearman(y_true, y_pred):
@@ -172,7 +170,6 @@ def spearman(y_true, y_pred):
     """
     ret_score = spearmanr(y_true, y_pred)[0]
     return ret_score if not np.isnan(ret_score) else 0.0
-
 
 
 def pearson(y_true, y_pred):
@@ -192,7 +189,6 @@ def pearson(y_true, y_pred):
     return ret_score if not np.isnan(ret_score) else 0.0
 
 
-
 def f1_score_least_frequent(y_true, y_pred):
     """
     Calculate the F1 score of the least frequent label/class in ``y_true`` for
@@ -207,7 +203,6 @@ def f1_score_least_frequent(y_true, y_pred):
     """
     least_frequent = np.bincount(y_true).argmin()
     return f1_score(y_true, y_pred, average=None)[least_frequent]
-
 
 
 def use_score_func(func_name, y_true, y_pred):

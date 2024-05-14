@@ -41,7 +41,8 @@ def get_scaled_down_scores(scores, prompts):
         rescaled_score_vector = [-1] * len(score_positions)
         for ind, att_val in enumerate(score_vector):
             if att_val != -1:
-                attribute_name = list(score_positions.keys())[list(score_positions.values()).index(ind)]
+                attribute_name = list(score_positions.keys())[
+                    list(score_positions.values()).index(ind)]
                 min_val = min_max_scores[prompt][attribute_name][0]
                 max_val = min_max_scores[prompt][attribute_name][1]
                 scaled_score = (att_val - min_val) / (max_val - min_val)
@@ -101,7 +102,7 @@ def rescale_tointscore(scaled_scores, set_ids):
             minscore = 0
             maxscore = 60
         else:
-            print ("Set ID error")
+            print("Set ID error")
 
         int_scores[k] = scaled_scores[k]*(maxscore-minscore) + minscore
     return np.around(int_scores).astype(int)
@@ -122,12 +123,14 @@ def rescale_single_attribute(scores, set_ids, attribute_name):
 def separate_attributes_for_scoring(scores, set_ids):
     score_vector_positions = get_score_vector_positions()
     min_max_scores = get_min_max_scores()
-    individual_att_scores_dict = {att: [] for att in score_vector_positions.keys()}
+    individual_att_scores_dict = {att: []
+                                  for att in score_vector_positions.keys()}
     score_set_comb = list(zip(scores, set_ids))
     for att_scores, set_id in score_set_comb:
         for relevant_attribute in min_max_scores[set_id].keys():
             att_position = score_vector_positions[relevant_attribute]
-            individual_att_scores_dict[relevant_attribute].append(att_scores[att_position])
+            individual_att_scores_dict[relevant_attribute].append(
+                att_scores[att_position])
     return individual_att_scores_dict
 
 
@@ -144,9 +147,11 @@ def separate_and_rescale_attributes_for_scoring(scores, set_ids):
             att_score = att_scores[att_position]
             rescaled_score = att_score * (max_score - min_score) + min_score
             try:
-                individual_att_scores_dict[relevant_attribute].append(np.around(rescaled_score).astype(int))
+                individual_att_scores_dict[relevant_attribute].append(
+                    np.around(rescaled_score).astype(int))
             except KeyError:
-                individual_att_scores_dict[relevant_attribute] = [np.around(rescaled_score).astype(int)]
+                individual_att_scores_dict[relevant_attribute] = [
+                    np.around(rescaled_score).astype(int)]
     return individual_att_scores_dict
 
 
@@ -165,7 +170,8 @@ def pad_flat_text_sequences(index_sequences, max_essay_len):
 
 
 def pad_hierarchical_text_sequences(index_sequences, max_sentnum, max_sentlen):
-    X = np.empty([len(index_sequences), max_sentnum, max_sentlen], dtype=np.int32)
+    X = np.empty([len(index_sequences), max_sentnum,
+                 max_sentlen], dtype=np.int32)
 
     for i in range(len(index_sequences)):
         sequence_ids = index_sequences[i]
@@ -193,7 +199,7 @@ def load_word_embedding_dict(embedding_path):
     print("Loading GloVe ...")
     embedd_dim = -1
     embedd_dict = dict()
-    with open(embedding_path, 'r') as file:
+    with open(embedding_path, 'r', encoding='UTF8') as file:
         for line in file:
             line = line.strip()
             if len(line) == 0:

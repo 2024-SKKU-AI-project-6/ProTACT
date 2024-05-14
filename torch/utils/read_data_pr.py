@@ -1,12 +1,12 @@
+from utils.general_utils import get_score_vector_positions
+from sklearn import preprocessing
+import pandas as pd
+import numpy as np
+import re
 import pickle
 import nltk
 nltk.download("punkt")
 nltk.download("averaged_perceptron_tagger")
-import re
-import numpy as np
-import pandas as pd
-from sklearn import preprocessing
-from utils.general_utils import get_score_vector_positions
 
 
 url_replacer = '<url>'
@@ -18,7 +18,8 @@ pd.set_option('mode.chained_assignment', None)
 
 
 def replace_url(text):
-    replaced_text = re.sub('(http[s]?://)?((www)\.)?([a-zA-Z0-9]+)\.{1}((com)(\.(cn))?|(org))', url_replacer, text)
+    replaced_text = re.sub(
+        '(http[s]?://)?((www)\.)?([a-zA-Z0-9]+)\.{1}((com)(\.(cn))?|(org))', url_replacer, text)
     return replaced_text
 
 
@@ -36,8 +37,10 @@ def shorten_sentence(sent, max_sentlen):
     sent = sent.strip()
     tokens = nltk.word_tokenize(sent)
     if len(tokens) > max_sentlen:
-        split_keywords = ['because', 'but', 'so', 'You', 'He', 'She', 'We', 'It', 'They', 'Your', 'His', 'Her']
-        k_indexes = [i for i, key in enumerate(tokens) if key in split_keywords]
+        split_keywords = ['because', 'but', 'so', 'You', 'He',
+                          'She', 'We', 'It', 'They', 'Your', 'His', 'Her']
+        k_indexes = [i for i, key in enumerate(
+            tokens) if key in split_keywords]
         processed_tokens = []
         if not k_indexes:
             num = len(tokens) / max_sentlen
@@ -75,7 +78,8 @@ def tokenize_to_sentences(text, max_sentlength, create_vocab_flag=False):
     processed_sents = []
     for sent in sents:
         if re.search(r'(?<=\.{1}|\!|\?|\,)(@?[A-Z]+[a-zA-Z]*[0-9]*)', sent):
-            s = re.split(r'(?=.{2,})(?<=\.{1}|\!|\?|\,)(@?[A-Z]+[a-zA-Z]*[0-9]*)', sent)
+            s = re.split(
+                r'(?=.{2,})(?<=\.{1}|\!|\?|\,)(@?[A-Z]+[a-zA-Z]*[0-9]*)', sent)
             ss = " ".join(s)
             ssL = re.split(r'(?<!\w\.\w.)(?<![A-Z][a-z]\.)(?<=\.|\!|\?)\s', ss)
 
@@ -108,7 +112,8 @@ def text_tokenizer(text, replace_url_flag=True, tokenize_sent_flag=True, create_
     tokens = tokenize(text)
     if tokenize_sent_flag:
         text = " ".join(tokens)
-        sent_tokens = tokenize_to_sentences(text, MAX_SENTLEN, create_vocab_flag)
+        sent_tokens = tokenize_to_sentences(
+            text, MAX_SENTLEN, create_vocab_flag)
         return sent_tokens
     else:
         raise NotImplementedError
@@ -136,7 +141,8 @@ def read_word_vocab(read_configs):
                 word_vocab_count[word] = 1
 
     import operator
-    sorted_word_freqs = sorted(word_vocab_count.items(), key=operator.itemgetter(1), reverse=True)
+    sorted_word_freqs = sorted(
+        word_vocab_count.items(), key=operator.itemgetter(1), reverse=True)
     if vocab_size <= 0:
         vocab_size = 0
         for word, freq in sorted_word_freqs:
@@ -150,6 +156,8 @@ def read_word_vocab(read_configs):
         word_vocab[word] = index
         index += 1
     return word_vocab
+
+# pos dictionary
 
 
 def read_pos_vocab(read_configs):
@@ -203,14 +211,19 @@ def get_normalized_features(features_df):
         x = prompt_id_df[column_names_to_normalize].values
         min_max_scaler = preprocessing.MinMaxScaler()
         normalized_pd1 = min_max_scaler.fit_transform(x)
-        df_temp = pd.DataFrame(normalized_pd1, columns=column_names_to_normalize, index = prompt_id_df.index)
+        df_temp = pd.DataFrame(
+            normalized_pd1, columns=column_names_to_normalize, index=prompt_id_df.index)
         prompt_id_df[column_names_to_normalize] = df_temp
         final_df = prompt_id_df[final_columns]
         if normalized_features_df is not None:
-            normalized_features_df = pd.concat([normalized_features_df,final_df],ignore_index=True)
+            normalized_features_df = pd.concat(
+                [normalized_features_df, final_df], ignore_index=True)
         else:
             normalized_features_df = final_df
     return normalized_features_df
+
+# 문장 토큰화 후 pos tag 인덱스에 해당하는 값으로 변환 (prompt 8개 모두 진행)
+
 
 def read_pr_pos(prompt_list, pos_tags):
     out_data = {
@@ -219,11 +232,12 @@ def read_pr_pos(prompt_list, pos_tags):
         'max_sentnum': -1,
         'max_sentlen': -1
     }
-    for i in range(len(prompt_list)): 
-        prompt_id = int(prompt_list['prompt_id'][i]) # prompt id
+    for i in range(len(prompt_list)):
+        prompt_id = int(prompt_list['prompt_id'][i])  # prompt id
         content = prompt_list['prompt'][i]
-        
-        sent_tokens = text_tokenizer(content, replace_url_flag=True, tokenize_sent_flag=True)
+
+        sent_tokens = text_tokenizer(
+            content, replace_url_flag=True, tokenize_sent_flag=True)
         sent_tokens = [[w.lower() for w in s] for s in sent_tokens]
 
         sent_tag_indices = []
@@ -260,8 +274,8 @@ def read_essay_sets_with_prompt_only_word_emb(essay_list, readability_features, 
     out_data = {
         'essay_ids': [],
         'pos_x': [],
-        'prompt_words':[],
-        'prompt_pos':[],
+        'prompt_words': [],
+        'prompt_pos': [],
         'readability_x': [],
         'features_x': [],
         'data_y': [],
@@ -271,7 +285,7 @@ def read_essay_sets_with_prompt_only_word_emb(essay_list, readability_features, 
     }
     for essay in essay_list:
         essay_id = int(essay['essay_id'])
-        essay_set = int(essay['prompt_id']) # prompt id
+        essay_set = int(essay['prompt_id'])  # prompt id
         content = essay['content_text']
         scores_and_positions = get_score_vector_positions()
         y_vector = [-1] * len(scores_and_positions)
@@ -283,17 +297,19 @@ def read_essay_sets_with_prompt_only_word_emb(essay_list, readability_features, 
         item_row_index = item_index[0][0]
         item_features = readability_features[item_row_index][1:]
         out_data['readability_x'].append(item_features)
-        feats_df = normalized_features_df[normalized_features_df.loc[:, 'item_id'] == essay_id]
+        feats_df = normalized_features_df[normalized_features_df.loc[:,
+                                                                     'item_id'] == essay_id]
         feats_list = feats_df.values.tolist()[0][1:]
         out_data['features_x'].append(feats_list)
-        
+
         prompt_index = prompt_data['prompt_ids'].index(essay_set)
         prompt = prompt_data['prompt_words'][prompt_index]
         out_data['prompt_words'].append(prompt)
-        
+
         prompt_pos = prompt_pos_data['prompt_pos'][prompt_index]
         out_data['prompt_pos'].append(prompt_pos)
-        sent_tokens = text_tokenizer(content, replace_url_flag=True, tokenize_sent_flag=True)
+        sent_tokens = text_tokenizer(
+            content, replace_url_flag=True, tokenize_sent_flag=True)
         sent_tokens = [[w.lower() for w in s] for s in sent_tokens]
 
         sent_tag_indices = []
@@ -317,27 +333,33 @@ def read_essay_sets_with_prompt_only_word_emb(essay_list, readability_features, 
         out_data['essay_ids'].append(essay_id)
         if out_data['max_sentnum'] < len(sent_tag_indices):
             out_data['max_sentnum'] = len(sent_tag_indices)
-    assert(len(out_data['pos_x']) == len(out_data['readability_x']))
-    assert(len(out_data['pos_x']) == len(out_data['prompt_words']))
-    assert(len(out_data['pos_x']) == len(out_data['prompt_pos']))
+    assert (len(out_data['pos_x']) == len(out_data['readability_x']))
+    assert (len(out_data['pos_x']) == len(out_data['prompt_words']))
+    assert (len(out_data['pos_x']) == len(out_data['prompt_pos']))
     print(' pos_x size: {}'.format(len(out_data['pos_x'])))
     print(' readability_x size: {}'.format(len(out_data['readability_x'])))
     return out_data
 
 
 def read_essays_prompts(read_configs, prompt_data, prompt_pos_data, pos_tags):
-    readability_features = get_readability_features(read_configs['readability_path'])
-    linguistic_features = get_linguistic_features(read_configs['features_path'])
-    normalized_linguistic_features = get_normalized_features(linguistic_features)
+    readability_features = get_readability_features(
+        read_configs['readability_path'])
+    linguistic_features = get_linguistic_features(
+        read_configs['features_path'])
+    normalized_linguistic_features = get_normalized_features(
+        linguistic_features)
     with open(read_configs['train_path'], 'rb') as train_file:
         train_essays_list = pickle.load(train_file)
     with open(read_configs['dev_path'], 'rb') as dev_file:
         dev_essays_list = pickle.load(dev_file)
     with open(read_configs['test_path'], 'rb') as test_file:
         test_essays_list = pickle.load(test_file)
-    train_data = read_essay_sets_with_prompt_only_word_emb(train_essays_list, readability_features, normalized_linguistic_features, prompt_data, prompt_pos_data, pos_tags)
-    dev_data = read_essay_sets_with_prompt_only_word_emb(dev_essays_list, readability_features, normalized_linguistic_features, prompt_data, prompt_pos_data, pos_tags)
-    test_data = read_essay_sets_with_prompt_only_word_emb(test_essays_list, readability_features, normalized_linguistic_features, prompt_data, prompt_pos_data, pos_tags)
+    train_data = read_essay_sets_with_prompt_only_word_emb(
+        train_essays_list, readability_features, normalized_linguistic_features, prompt_data, prompt_pos_data, pos_tags)
+    dev_data = read_essay_sets_with_prompt_only_word_emb(
+        dev_essays_list, readability_features, normalized_linguistic_features, prompt_data, prompt_pos_data, pos_tags)
+    test_data = read_essay_sets_with_prompt_only_word_emb(
+        test_essays_list, readability_features, normalized_linguistic_features, prompt_data, prompt_pos_data, pos_tags)
     return train_data, dev_data, test_data
 
 
@@ -348,11 +370,12 @@ def read_prompts_word(prompt_list, vocab):
         'max_sentnum': -1,
         'max_sentlen': -1
     }
-    for i in range(len(prompt_list)): 
-        prompt_id = int(prompt_list['prompt_id'][i]) # prompt id
+    for i in range(len(prompt_list)):
+        prompt_id = int(prompt_list['prompt_id'][i])  # prompt id
         content = prompt_list['prompt'][i]
-        
-        sent_tokens = text_tokenizer(content, replace_url_flag=True, tokenize_sent_flag=True)
+
+        sent_tokens = text_tokenizer(
+            content, replace_url_flag=True, tokenize_sent_flag=True)
         sent_tokens = [[w.lower() for w in s] for s in sent_tokens]
 
         sent_indices = []
