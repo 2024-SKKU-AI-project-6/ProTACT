@@ -40,15 +40,14 @@ class ProTACT(nn.Module):
         # reshape to (none, maxnum, maxlen, embedding_dim)
 
         # for sentence level representation(what about conv2d?)
-        # self.essay_pos_conv = nn.Conv1d(
-        #     self.embedding_dim, self.filters, self.kernel_size, padding='valid')
-        # self.essay_pos_conv = nn.Conv2d(self.max_num, self.max_len,
-        #                                 self.embedding_dim, self.filters, self.kernel_size, padding='valid')
-        self.essay_pos_conv = TimeDistributedConv1D(
+        self.essay_pos_conv = nn.Conv1d(
             self.embedding_dim, self.filters, self.kernel_size, padding='valid')
+        # self.essay_pos_conv = TimeDistributedConv1D(
+        #     self.embedding_dim, self.filters, self.kernel_size, padding='valid')
 
-        self.essay_pos_attention = TimeDistributed(self.attention_module)
-
+        #self.essay_pos_attention = TimeDistributed(self.attention_module)
+        self.essay_pos_attention = self.attention_module
+        
         print("self.essay_pos_attention", self.essay_pos_attention)
 
         self.essay_linquistic = nn.Linear(
@@ -75,8 +74,8 @@ class ProTACT(nn.Module):
             None, self.max_num * self.max_len, self.embedding_dim))
 
         self.prompt_dropout = nn.Dropout(self.dropout_prob)
-        self.prompt_cnn = TimeDistributedConv1D(
-            self.embedding_dim, self.filters, self.kernel_size, padding='valid')
+        #self.prompt_cnn = TimeDistributedConv1D(self.embedding_dim, self.filters, self.kernel_size, padding='valid')
+        self.prompt_cnn = nn.Conv1d(in_channels=self.embedding_dim, out_channels=self.filters, kernel_size=self.kernel_size, padding='valid')
         self.prompt_attention = TimeDistributed(self.attention_module)
 
         self.prompt_MA = MultiHeadAttention(100, num_heads)
@@ -110,16 +109,18 @@ class ProTACT(nn.Module):
         # )
 
         # pos_input = [(None, 4850)]
-        pos_x = self.essay_pos_embedding(pos_input)
-        pos_x_maskedout = self.essay_pos_x_maskedout(pos_x)
-        pos_drop_x = self.essay_pos_dropout(pos_x_maskedout).transpose(1, 2)
+        pos_x = self.essay_pos_embedding(pos_input) # (pos_vocab_size, embedding_dim): (None, 4850, 50)
+        pos_x_maskedout = self.essay_pos_x_maskedout(pos_x) # (None, pos_vocab_size, embedding_dim)
+        pos_drop_x = self.essay_pos_dropout(pos_x_maskedout).transpose(1, 2)  # (None, pos_vocab_size, embedding_dim)
         print("pos_drop_x", pos_drop_x.shape)
+        
         # reshape the tensor to (none, maxnum, maxlen, embedding_dim)
         pos_resh_W = pos_drop_x.reshape(-1, self.max_num,
-                                        self.max_len, self.embedding_dim)
-        print("pos_resh_W", pos_resh_W.shape)
-        pos_zcnn = self.essay_pos_conv(pos_resh_W)
-        print("pos_zcnn", pos_zcnn.shape)
+                                        self.max_len, self.embedding_dim) # (None, 97, 50, 50)
+        print("pos_resh_W", pos_resh_W.shape) 
+        pos_resh_W = pos_resh_W.permute(0,1,3,2) # (none, maxnum, embedding_dim, maxlen)
+        pos_zcnn = self.essay_pos_conv(pos_resh_W) # (none, maxnum, maxlen, kernel)
+        print("pos_zcnn", pos_zcnn.shape) # (none, 97, 46, 100)
         # for fitting the attention layer
         # from here...
         # pos_zcnn = pos_zcnn.view(-1, , , self.filters)

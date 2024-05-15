@@ -21,8 +21,8 @@ class ZeroMaskedEntries(Layer):
         super(ZeroMaskedEntries, self).__init__(**kwargs)
 
     def build(self, input_shape):
-        self.output_dim = input_shape[1] # sequence length
-        self.repeat_dim = input_shape[2] # embedding dimension
+        self.output_dim = input_shape[1] # sequence length 
+        self.repeat_dim = input_shape[2] # embedding dimension: 50
 
     def call(self, x, mask=None):
         mask = K.cast(mask, 'float32')
