@@ -2,9 +2,9 @@ import torch
 import torch.nn as nn
 
 
-class TimeDistributed(nn.Module):
+class TimeDistributedAttention(nn.Module):
     def __init__(self, module):
-        super(TimeDistributed, self).__init__()
+        super(TimeDistributedAttention, self).__init__()
         self.module = module
 
     def forward(self, x):
