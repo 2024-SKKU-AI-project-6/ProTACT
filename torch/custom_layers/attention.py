@@ -6,8 +6,8 @@ import torch.nn.functional as F
 class Attention(nn.Module):
     def __init__(self, input_shape, op='attsum', activation='tanh', init_stdev=0.01):
         super(Attention, self).__init__()
-        assert op in {"attsum", "attmean"}
-        assert activation in {None, "tanh"}
+        assert op in {'attsum', 'attmean'}
+        assert activation in {None, 'tanh'}
         self.op = op
         self.activation = activation
         self.init_stdev = init_stdev

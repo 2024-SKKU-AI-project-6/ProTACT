@@ -45,9 +45,10 @@ class ProTACT(nn.Module):
         # self.essay_pos_conv = nn.Conv2d(self.max_num, self.max_len,
         #                                 self.embedding_dim, self.filters, self.kernel_size, padding='valid')
         self.essay_pos_conv = TimeDistributedConv1D(
-            self.embedding_dim, self.filters, self.kernel_size, padding='valid')
+            maxlen=self.max_len, maxnum=self.max_num, out_channels=self.filters, kernel_size=self.kernel_size, padding='valid')
 
-        self.essay_pos_attention = TimeDistributed(self.attention_module)
+        self.essay_pos_attention = TimeDistributed(
+            self.max_num, self.attention_module)
 
         print("self.essay_pos_attention", self.essay_pos_attention)
 
@@ -60,6 +61,7 @@ class ProTACT(nn.Module):
             [MultiHeadAttention(100, num_heads) for _ in range(self.output_dim)])
         self.essay_pos_MA_LSTM = nn.ModuleList(  # batch_first=True for (batch_size, sequence_length, input_size) same as keras
             [nn.LSTM(input_size=100,  hidden_size=self.lstm_units, batch_first=True) for _ in range(self.output_dim)])
+
         self.easay_pos_avg_MA_LSTM = nn.ModuleList(
             [Attention(input_shape=(None, None, self.filters)) for _ in range(self.output_dim)])
 
@@ -76,13 +78,15 @@ class ProTACT(nn.Module):
 
         self.prompt_dropout = nn.Dropout(self.dropout_prob)
         self.prompt_cnn = TimeDistributedConv1D(
-            self.embedding_dim, self.filters, self.kernel_size, padding='valid')
-        self.prompt_attention = TimeDistributed(self.attention_module)
+            maxlen=self.max_len, maxnum=self.max_num, out_channels=self.filters, kernel_size=self.kernel_size, padding="valid")
+        self.prompt_attention = TimeDistributed(
+            self.max_num, self.attention_module)
 
         self.prompt_MA = MultiHeadAttention(100, num_heads)
         self.prompt_MA_lstm = nn.LSTM(
             input_size=100,  hidden_size=self.lstm_units, batch_first=True)
-        self.prompt_avg_MA_lstm = TimeDistributed(self.attention_module)
+        self.prompt_avg_MA_lstm = Attention(
+            input_shape=(None, None, self.filters))
 
         self.es_pr_MA_list = nn.ModuleList(
             [MultiHeadAttention_PE(self.filters, num_heads) for _ in range(self.output_dim)])
@@ -130,8 +134,13 @@ class ProTACT(nn.Module):
             pos_avg_zcnn) for i in range(self.output_dim)]
         pos_MA_lstm_list = [self.essay_pos_MA_LSTM[i](
             pos_MA_list[i]) for i in range(self.output_dim)]
+        # print shape of pos_MA_lstm_list
+        print("pos_MA_lstm_list length: ", len(pos_MA_lstm_list))
+        print("pos_MA_lstm_list[0][0] shape: ", pos_MA_lstm_list[0][0].shape)
         pos_avg_MA_lstm_list = [self.easay_pos_avg_MA_LSTM[i](
-            pos_MA_lstm_list[i]) for i in range(self.output_dim)]
+            pos_MA_lstm_list[i][0]) for i in range(self.output_dim)]
+        print("pos_avg_MA_lstm len", len(pos_avg_MA_lstm_list))
+        print("pos_avg_MA_lstm[0] shape", pos_avg_MA_lstm_list[0].shape)
 
         # Prompt Representation
         prompt = self.prompt_embedding(prompt_word_input)
@@ -141,17 +150,18 @@ class ProTACT(nn.Module):
 
         prompt_emb = prompt_maskedout + prompt_pos_maskedout
         prompt_drop_x = self.prompt_dropout(prompt_emb).transpose(1, 2)
-        # prompt_resh_W = prompt_drop_x.view(-1, self.maxnum,
-        #                                   self.maxlen, self.embedding_dim).transpose(2, 3)
-        prompt_zcnn = self.prompt_cnn(prompt_drop_x)
+        prompt_resh_W = prompt_drop_x.reshape(-1, self.max_num,
+                                              self.max_len, self.embedding_dim)
+        prompt_zcnn = self.prompt_cnn(prompt_resh_W)
         # for fitting the attention layer
-        prompt_zcnn = prompt_zcnn.view(-1,
-                                       self.max_num, self.max_len, self.filters)
+        #  prompt_zcnn = prompt_zcnn.view(-1,
+        #                               self.max_num, self.max_len, self.filters)
         prompt_avg_zcnn = self.prompt_attention(prompt_zcnn)
-
         prompt_MA = self.prompt_MA(prompt_avg_zcnn)
         prompt_MA_lstm = self.prompt_MA_lstm(prompt_MA)
-        prompt_avg_MA_lstm = self.prompt_avg_MA_lstm(prompt_MA_lstm)
+        print("prompt_MA_lstm", prompt_MA_lstm[0].shape)
+
+        prompt_avg_MA_lstm = self.prompt_avg_MA_lstm(prompt_MA_lstm[0])
 
         query = prompt_avg_MA_lstm
 
@@ -160,7 +170,7 @@ class ProTACT(nn.Module):
         es_pr_MA_lstm_list = [self.es_pr_MA_lstm_list[i](
             es_pr_MA_list[i]) for i in range(self.output_dim)]
         es_pr_avg_lstm_list = [self.es_pr_avg_lstm_list[i](
-            es_pr_MA_lstm_list[i]) for i in range(self.output_dim)]
+            es_pr_MA_lstm_list[i][0]) for i in range(self.output_dim)]
         es_pr_feat_concat = [torch.cat(
             [rep, linguistic_input, readability_input], dim=-1) for rep in es_pr_avg_lstm_list]
         pos_avg_hz_lstm = torch.stack(
