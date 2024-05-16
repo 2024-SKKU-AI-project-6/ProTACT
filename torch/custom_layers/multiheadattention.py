@@ -6,20 +6,20 @@ import torch.nn.functional as F
 class MultiHeadAttention(nn.Module):
     def __init__(self, embedding_dim, num_heads=8):
         super(MultiHeadAttention, self).__init__()
-        self.embedding_dim = embedding_dim
-        self.num_heads = num_heads
+        self.embedding_dim = embedding_dim # 100
+        self.num_heads = num_heads # 2
 
         assert embedding_dim % self.num_heads == 0
 
-        self.projection_dim = embedding_dim // num_heads
+        self.projection_dim = embedding_dim // num_heads # 50
         self.query_dense = nn.Linear(embedding_dim, embedding_dim)
         self.key_dense = nn.Linear(embedding_dim, embedding_dim)
         self.value_dense = nn.Linear(embedding_dim, embedding_dim)
         self.dense = nn.Linear(embedding_dim, embedding_dim)
 
     def scaled_dot_product_attention(self, query, key, value):
-        matmul_qk = torch.matmul(query, key.transpose(-2, -1))
-        depth = torch.FloatTensor(key.shape[-1])
+        matmul_qk = torch.matmul(query, key.transpose(-2, -1)) # (1680, 2, 97, 97)
+        depth = torch.FloatTensor([key.shape[-1]])[0]
         logits = matmul_qk / torch.sqrt(depth)
         attention_weights = F.softmax(logits, dim=-1)
         output = torch.matmul(attention_weights, value)
@@ -45,7 +45,7 @@ class MultiHeadAttention(nn.Module):
         scaled_attention = scaled_attention.permute(0, 2, 1, 3)
 
         # (batch_size, seq_len, embedding_dim)
-        concat_attention = scaled_attention.view(
+        concat_attention = scaled_attention.reshape(
             batch_size, -1, self.embedding_dim)
         y = self.dense(concat_attention)
         return y

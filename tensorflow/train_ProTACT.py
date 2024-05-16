@@ -12,19 +12,6 @@ from evaluators.multitask_evaluator_all_attributes import Evaluator as AllAttEva
 from tensorflow import keras
 import matplotlib.pyplot as plt
 
-class CustomHistory(keras.callbacks.Callback):
-    def init(self):
-        self.train_loss = []
-        self.val_loss = []
-        self.train_acc = []
-        self.val_acc = []        
-        
-    def on_epoch_end(self, batch, logs={}):
-        self.train_loss.append(logs.get('loss'))
-        self.val_loss.append(logs.get('val_loss'))
-        self.train_acc.append(logs.get('acc'))
-        self.val_acc.append(logs.get('val_acc'))
-
 def main():
     parser = argparse.ArgumentParser(description="ProTACT model")
     parser.add_argument('--test_prompt_id', type=int, default=1, help='prompt id of test essay set')
@@ -185,37 +172,35 @@ def main():
 
     evaluator.evaluate(model, -1, print_info=True)
 
-    custom_hist = CustomHistory() 
-    custom_hist.init() 
-    
-    # 저장한 체크포인트 있다면: 이어서 학습
-    # model.load_weights('Checkpoint/tensor{epoch}')
-    
-    checkpoint = tf.keras.callbacks.ModelCheckpoint(
-        # epoch 마다 파일명 다르게 저장
-        filepath='Checkpoint/tensor{epoch}',
+    # 구버전 Checkpoint 안할때
+    # class CustomHistory(keras.callbacks.Callback):
+    #     def init(self):
+    #         self.train_loss = []
+    #         self.val_loss = []
+    #         self.train_acc = []
+    #         self.val_acc = []        
         
-        # epoch 마다 weights 들만 저장
-        save_freq='epoch',
-        save_weights_only = True,
-        
-        # validation accruary 가 최대일때만 저장 
-        monitor='val_acc',
-        mode='max'
-    )
+    #     def on_epoch_end(self, batch, logs={}):
+    #         self.train_loss.append(logs.get('loss'))
+    #         self.val_loss.append(logs.get('val_loss'))
+    #         self.train_acc.append(logs.get('acc'))
+    #         self.val_acc.append(logs.get('val_acc'))
+            
+    # custom_hist = CustomHistory() 
+    # custom_hist.init() 
     
-    for ii in range(epochs):
-        print('Epoch %s/%s' % (str(ii + 1), epochs))
-        start_time = time.time()
-        model.fit(
-            train_features_list,
-            Y_train, batch_size=batch_size, epochs=5, verbose=0, shuffle=True, validation_data=(dev_features_list,Y_dev),callbacks=[custom_hist,checkpoint])
-        tt_time = time.time() - start_time
-        print("Training one epoch in %.3f s" % tt_time)
-        evaluator.evaluate(model, ii + 1)
-        print("Train Loss: ", custom_hist.train_loss[-1], "|| Val Loss: ", custom_hist.val_loss[-1])
+    # for ii in range(epochs):
+    #     print('Epoch %s/%s' % (str(ii + 1), epochs))
+    #     start_time = time.time()
+    #     model.fit(
+    #         train_features_list,
+    #         Y_train, batch_size=batch_size, epochs=5, verbose=0, shuffle=True, validation_data=(dev_features_list,Y_dev),callbacks=[custom_hist,checkpoint])
+    #     tt_time = time.time() - start_time
+    #     print("Training one epoch in %.3f s" % tt_time)
+    #     evaluator.evaluate(model, ii + 1)
+    #     print("Train Loss: ", custom_hist.train_loss[-1], "|| Val Loss: ", custom_hist.val_loss[-1])
 
-    evaluator.print_final_info()
+    # evaluator.print_final_info()
 
     '''# show the loss as the graph
     fig, loss_graph = plt.subplots()
@@ -225,6 +210,57 @@ def main():
     loss_graph.set_ylabel('loss')
     plt.savefig(str('images/protact/test_prompt_'+ str(test_prompt_id) + '_seed_' + str(seed) + '_loss.png'))'''
 
+    # 저장한 체크포인트 있다면: 이어서 학습
+    # model.load_weights('Checkpoint/bestmodel1.h5')
+
+    checkpoint = tf.keras.callbacks.ModelCheckpoint(
+        # epoch 마다 파일명 다르게 저장
+        filepath='Checkpoint/bestmodel{epoch}.h5',
+
+        # epoch 마다 weights 들만 저장
+        save_freq='epoch',
+        save_weights_only = True,
+
+        # validation accruary 가 최대일때만 저장 
+        monitor='val_loss',
+        mode='min'
+    )
+    class CustomHistory(tf.keras.callbacks.Callback):
+        def on_train_begin(self, logs=None):
+            self.train_loss = []
+            self.val_loss = []
+            self.train_acc = []
+            self.val_acc = [] 
+            self.epoch_times = []
+
+        def on_epoch_begin(self, epoch, logs=None):
+            self.start_time = time.time()
+
+        def on_epoch_end(self, epoch, logs=None):
+            self.train_loss.append(logs.get('loss'))
+            self.val_loss.append(logs.get('val_loss'))
+            self.train_acc.append(logs.get('acc'))
+            self.val_acc.append(logs.get('val_acc'))
+            epoch_time = time.time() - self.start_time
+            self.epoch_times.append(epoch_time)
+            print(f"Epoch {epoch + 1}: Train Loss: {logs.get('loss')} || Val Loss: {logs.get('val_loss')}")
+            print(f"Epoch {epoch + 1} completed in {epoch_time:.3f} seconds")
+
+            # Evaluate the model (you might need to adjust this to your specific evaluation function)
+            evaluator.evaluate(self.model, epoch + 1)
+
+    custom_hist = CustomHistory()
+    
+    model.fit(
+        train_features_list,
+        Y_train,
+        batch_size=batch_size,
+        epochs=epochs,
+        verbose=1,
+        shuffle=True,
+        validation_data=(dev_features_list, Y_dev),
+        callbacks=[custom_hist, checkpoint]
+    )
 
 if __name__ == '__main__':
     main()

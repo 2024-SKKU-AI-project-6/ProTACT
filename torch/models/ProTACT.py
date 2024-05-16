@@ -41,15 +41,16 @@ class ProTACT(nn.Module):
         # reshape to (none, maxnum, maxlen, embedding_dim)
 
         # for sentence level representation(what about conv2d?)
-        self.essay_pos_conv = nn.Conv1d(self.embedding_dim, self.filters, self.kernel_size, padding='valid')
-        self.essay_pos_conv_list = nn.ModuleList(self.essay_pos_conv for i in range(self.max_num))
         # self.essay_pos_conv = TimeDistributedConv1D(
         #     self.embedding_dim, self.filters, self.kernel_size, padding='valid')
+        self.essay_pos_conv = nn.Conv1d(self.embedding_dim, self.filters, self.kernel_size, padding='valid')
+        self.essay_pos_conv_list = nn.ModuleList(self.essay_pos_conv for i in range(self.max_num))
+        
 
         #self.essay_pos_attention = TimeDistributedAttention(self.attention_module)
-        self.essay_pos_attention = TimeDistributed(self.attention_module)
+        self.essay_pos_attention_list = nn.ModuleList(self.attention_module for i in range(self.max_num))
         
-        print("self.essay_pos_attention", self.essay_pos_attention)
+        print("self.essay_pos_attention_list", self.essay_pos_attention_list)
 
         self.essay_linquistic = nn.Linear(
             linguistic_feature_count,  self.filters)
@@ -57,11 +58,12 @@ class ProTACT(nn.Module):
             readability_feature_count,  self.filters)
 
         self.essay_pos_MA = nn.ModuleList(
-            [MultiHeadAttention(100, num_heads) for _ in range(self.output_dim)])
+            MultiHeadAttention(100, num_heads) for _ in range(self.output_dim))
+        # self.lstm_unts: 100
         self.essay_pos_MA_LSTM = nn.ModuleList(  # batch_first=True for (batch_size, sequence_length, input_size) same as keras
-            [nn.LSTM(input_size=100,  hidden_size=self.lstm_units, batch_first=True) for _ in range(self.output_dim)])
-        self.easay_pos_avg_MA_LSTM = nn.ModuleList(
-            [Attention(input_shape=(None, None, self.filters)) for _ in range(self.output_dim)])
+            nn.LSTM(input_size=100,  hidden_size=self.lstm_units, batch_first=True) for _ in range(self.output_dim))
+        self.essay_pos_avg_MA_LSTM = nn.ModuleList(
+            Attention(input_shape=(None, None, self.filters)) for _ in range(self.output_dim))
 
         # Prompt Representation
         self.prompt_embedding = nn.Embedding.from_pretrained(
@@ -113,7 +115,7 @@ class ProTACT(nn.Module):
         pos_x = self.essay_pos_embedding(pos_input) # (pos_vocab_size, embedding_dim): (None, 4850, 50)
         pos_x_maskedout = self.essay_pos_x_maskedout(pos_x) # (None, pos_vocab_size, embedding_dim)
         pos_drop_x = self.essay_pos_dropout(pos_x_maskedout)  # (None, pos_vocab_size, embedding_dim)
-        print("pos_drop_x  this is timedistribution checking 4: ", pos_drop_x.shape)
+        print("pos_drop_x: ", pos_drop_x.shape)
         
         # reshape the tensor to (none, maxnum, maxlen, embedding_dim)
         pos_resh_W = pos_drop_x.reshape(-1, self.max_num,
@@ -128,21 +130,28 @@ class ProTACT(nn.Module):
             output_t = self.essay_pos_conv_list[i](pos_resh_W[:,i,:,:])  # (none, 46, 100)
             output_t  = output_t.unsqueeze(1) # (None, 1, 46,100)
             pos_zcnn = torch.cat((pos_zcnn, output_t ), 1) #(None, 2, 100, 46)
-        pos_zcnn.permute(0,1,3,2)
+        pos_zcnn = pos_zcnn.permute(0,1,3,2)
         print("pos_zcnn", pos_zcnn.shape) # (none, 97, 46, 100)
-        
         
         # for fitting the attention layer
         # from here...
         # pos_zcnn = pos_zcnn.view(-1, , , self.filters)
-        pos_avg_zcnn = self.essay_pos_attention(pos_zcnn)
+        # pos_avg_zcnn = self.essay_pos_attention(pos_zcnn)
+        
+        pos_avg_zcnn = torch.tensor([])
+        for i in range(self.max_num): # (None,46,100)
+            output_t = self.essay_pos_attention_list[i](pos_zcnn[:,i,:]) # (None,100)
+            output_t = output_t.unsqueeze(1)
+            pos_avg_zcnn = torch.cat((pos_avg_zcnn, output_t),1)
         print("pos_avg_zcnn", pos_avg_zcnn.shape)
+        
+        
 
         pos_MA_list = [self.essay_pos_MA[i](
             pos_avg_zcnn) for i in range(self.output_dim)]
         pos_MA_lstm_list = [self.essay_pos_MA_LSTM[i](
             pos_MA_list[i]) for i in range(self.output_dim)]
-        pos_avg_MA_lstm_list = [self.easay_pos_avg_MA_LSTM[i](
+        pos_avg_MA_lstm_list = [self.essay_pos_avg_MA_LSTM[i](
             pos_MA_lstm_list[i]) for i in range(self.output_dim)]
 
         # Prompt Representation

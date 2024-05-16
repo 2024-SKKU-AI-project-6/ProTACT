@@ -16,7 +16,7 @@ class MultiHeadAttention(tf.keras.layers.Layer):
         self.dense = tf.keras.layers.Dense(embedding_dim)
 
     def scaled_dot_product_attention(self, query, key, value):
-        matmul_qk = tf.matmul(query, key, transpose_b=True)
+        matmul_qk = tf.matmul(query, key, transpose_b=True)        
         depth = tf.cast(tf.shape(key)[-1], tf.float32)
         logits = matmul_qk / tf.math.sqrt(depth)
         attention_weights = tf.nn.softmax(logits, axis=-1)
