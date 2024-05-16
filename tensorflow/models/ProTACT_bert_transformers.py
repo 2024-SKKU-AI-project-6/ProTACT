@@ -111,12 +111,15 @@ def build_ProTACT(pos_vocab_size, vocab_size, maxnum, maxlen, readability_featur
     readability_input = layers.Input((readability_feature_count,), name='readability_input')
 
     pos_MA_list = [MultiHeadAttention(100,num_heads)(pos_avg_zcnn) for _ in range(output_dim)]
-    print(np.shape(pos_MA_lsit[0]))
+    # type_of_first_element = type(pos_MA_list[0])
+    # print(type_of_first_element)
     
-    # pos_MA_bert_model_list = [TFBertModel.from_pretrained("bert-base-uncased") for _ in pos_MA_list]
-    # pos_MA_bert_input_list = [layers.Input()]
-    pos_MA_lstm_list = [layers.LSTM(lstm_units, return_sequences=True)(pos_MA) for pos_MA in pos_MA_list] 
-    pos_avg_MA_lstm_list = [Attention()(pos_hz_lstm) for pos_hz_lstm in pos_MA_lstm_list] 
+    
+    pos_MA_bert_model_list = [TFBertModel.from_pretrained("bert-base-uncased") for _ in pos_MA_list]
+    pos_MA_bert_list = [pos_MA_bert_model_list[i](pos_MA_list[i])[0] for i in range(pos_MA_list)]
+    pos_MA_Dense_list = [layers.Dense(units=lstm_units, activation='relu')(bert_output) for bert_output in pos_MA_bert_list]
+    # pos_MA_lstm_list = [layers.LSTM(lstm_units, return_sequences=True)(pos_MA) for pos_MA in pos_MA_list] 
+    pos_avg_MA_lstm_list = [Attention()(pos_hz_lstm) for pos_hz_lstm in pos_MA_Dense_list] 
 
     ### 2. Prompt Representation
     # word embedding
