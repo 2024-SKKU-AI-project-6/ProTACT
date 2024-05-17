@@ -3,7 +3,7 @@ import tensorflow as tf
 import tensorflow.keras.layers as layers
 from tensorflow import keras
 import tensorflow.keras.backend as K
-from transformers import TFBertModel
+from transformers import TFBertModel, BertConfig
 
 from custom_layers.zeromasking import ZeroMaskedEntries
 from custom_layers.attention import Attention
@@ -94,8 +94,19 @@ def build_ProTACT(pos_vocab_size, vocab_size, maxnum, maxlen, readability_featur
     dropout_prob = configs.DROPOUT
     cnn_filters = configs.CNN_FILTERS
     cnn_kernel_size = configs.CNN_KERNEL_SIZE
-    lstm_units = configs.LSTM_UNITS
+    bert_hidden_size = configs.LSTM_UNITS
     num_heads = num_heads
+    
+    bert_config = BertConfig(
+        hidden_size=embedding_dim,
+        num_hidden_layers=12,
+        num_attention_heads=num_heads,
+        intermediate_size=3072,
+        max_position_embeddings=512,
+        vocab_size=vocab_size,
+        hidden_dropout_prob=dropout_prob,
+        attention_probs_dropout_prob=dropout_prob,
+    )
     
     ### 1. Essay Representation
     pos_input = layers.Input(shape=(maxnum*maxlen,), dtype='int32', name='pos_input')
@@ -114,12 +125,11 @@ def build_ProTACT(pos_vocab_size, vocab_size, maxnum, maxlen, readability_featur
     # type_of_first_element = type(pos_MA_list[0])
     # print(type_of_first_element)
     
-    
-    pos_MA_bert_model_list = [TFBertModel.from_pretrained("bert-base-uncased") for _ in pos_MA_list]
-    pos_MA_bert_list = [pos_MA_bert_model_list[i](pos_MA_list[i])[0] for i in range(pos_MA_list)]
-    pos_MA_Dense_list = [layers.Dense(units=lstm_units, activation='relu')(bert_output) for bert_output in pos_MA_bert_list]
-    # pos_MA_lstm_list = [layers.LSTM(lstm_units, return_sequences=True)(pos_MA) for pos_MA in pos_MA_list] 
-    pos_avg_MA_lstm_list = [Attention()(pos_hz_lstm) for pos_hz_lstm in pos_MA_Dense_list] 
+    pos_MA_bert_model = TFBertModel(bert_config)
+    print(pos_MA_list[1])
+    print(pos_avg_zcnn)
+    pos_MA_bert_list = [pos_MA_bert_model(pos_avg_zcnn).last_hidden_state for pos_avg_zcnn in pos_MA_list]
+    pos_avg_MA_lstm_list = [Attention()(pos_hz_lstm) for pos_hz_lstm in pos_MA_bert_list]
 
     ### 2. Prompt Representation
     # word embedding
@@ -143,17 +153,17 @@ def build_ProTACT(pos_vocab_size, vocab_size, maxnum, maxlen, readability_featur
     prompt_avg_zcnn = layers.TimeDistributed(Attention(), name='prompt_avg_zcnn')(prompt_zcnn)
     
     prompt_MA_list = MultiHeadAttention(100, num_heads)(prompt_avg_zcnn)
-    prompt_MA_lstm_list = layers.LSTM(lstm_units, return_sequences=True)(prompt_MA_list) 
+    prompt_MA_lstm_list = layers.LSTM(bert_hidden_size, return_sequences=True)(prompt_MA_list) 
     prompt_avg_MA_lstm_list = Attention()(prompt_MA_lstm_list)
     
     query = prompt_avg_MA_lstm_list
 
     es_pr_MA_list = [MultiHeadAttention_PE(100,num_heads)(pos_avg_MA_lstm_list[i], query) for i in range(output_dim)]
-    es_pr_MA_lstm_list = [layers.LSTM(lstm_units, return_sequences=True)(pos_hz_MA) for pos_hz_MA in es_pr_MA_list]
+    es_pr_MA_lstm_list = [layers.LSTM(bert_hidden_size, return_sequences=True)(pos_hz_MA) for pos_hz_MA in es_pr_MA_list]
     es_pr_avg_lstm_list = [Attention()(pos_hz_lstm) for pos_hz_lstm in es_pr_MA_lstm_list]
     es_pr_feat_concat = [layers.Concatenate()([rep, linguistic_input, readability_input]) # concatenate with non-prompt-specific features
                                  for rep in es_pr_avg_lstm_list]
-    pos_avg_hz_lstm = tf.concat([layers.Reshape((1, lstm_units + linguistic_feature_count + readability_feature_count))(rep)
+    pos_avg_hz_lstm = tf.concat([layers.Reshape((1, bert_hidden_size + linguistic_feature_count + readability_feature_count))(rep)
                                  for rep in es_pr_feat_concat], axis=-2)
 
     final_preds = []
