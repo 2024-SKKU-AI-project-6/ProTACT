@@ -13,6 +13,7 @@ from utils.read_data_pr import read_pos_vocab, read_word_vocab, read_prompts_we,
 from utils.general_utils import get_scaled_down_scores, pad_hierarchical_text_sequences, get_attribute_masks, load_word_embedding_dict, build_embedd_table
 from evaluators.multitask_evaluator_all_attributes import Evaluator as AllAttEvaluator
 import matplotlib.pyplot as plt
+from tqdm import tqdm
 
 
 class CustomHistory:
@@ -266,6 +267,50 @@ def main():
 
     custom_hist = CustomHistory()
 
+    # for epoch in range(epochs):
+    #     print(f'Epoch {epoch + 1}/{epochs}')
+    #     start_time = time.time()
+
+    #     # train
+    #     model.train()
+    #     train_loss = 0.0
+    #     for batch_data in train_loader:
+    #         optimizer.zero_grad()
+    #         batch_data = [x.to(device) for x in batch_data]
+    #         inputs, targets = batch_data[:-1], batch_data[-1]
+    #         outputs = model(*inputs)
+    #         # print(targets.dtype)
+    #         # print(outputs.dtype)
+    #         targets = targets.float()
+    #         loss = criterion(outputs, targets)
+    #         # print(type(loss))
+    #         loss.backward()
+    #         optimizer.step()
+    #         train_loss += loss.item() * batch_data[0].size(0)
+    #     train_loss /= len(train_loader.dataset)
+
+    #     # validate
+    #     model.eval()
+    #     val_loss = 0.0
+    #     with torch.no_grad():
+    #         for batch_data in dev_loader:
+    #             batch_data = [x.to(device) for x in batch_data]
+    #             inputs, targets = batch_data[:-1], batch_data[-1]
+    #             outputs = model(*inputs)
+    #             # loss = criterion(outputs, targets)
+    #             loss = criterion(outputs, targets)
+    #             val_loss += loss.item() * batch_data[0].size(0)
+    #         val_loss /= len(dev_loader.dataset)
+
+    #     custom_hist.update(train_loss, val_loss)
+
+    #     # evaluate
+    #     tt_time = time.time() - start_time
+    #     print(f"Training one epoch in {tt_time:.3f} s")
+    #     evaluator.evaluate(model, epoch + 1)
+    #     print(f"Train Loss: {train_loss:.4f} || Val Loss: {val_loss:.4f}")
+
+    # add tqdm
     for epoch in range(epochs):
         print(f'Epoch {epoch + 1}/{epochs}')
         start_time = time.time()
@@ -273,28 +318,36 @@ def main():
         # train
         model.train()
         train_loss = 0.0
-        for batch_data in train_loader:
+        train_pbar = tqdm(train_loader, desc=f'Epoch {epoch + 1} - Training')
+        for batch_data in train_pbar:
             optimizer.zero_grad()
             batch_data = [x.to(device) for x in batch_data]
             inputs, targets = batch_data[:-1], batch_data[-1]
             outputs = model(*inputs)
-            loss = criterion.loss_function(outputs, targets)
+            targets = targets.float()
+            loss = criterion(targets, outputs)
             loss.backward()
             optimizer.step()
             train_loss += loss.item() * batch_data[0].size(0)
+            train_pbar.set_postfix({'loss': loss.item()})
         train_loss /= len(train_loader.dataset)
+        train_pbar.close()
 
         # validate
         model.eval()
         val_loss = 0.0
+        val_pbar = tqdm(dev_loader, desc=f'Epoch {epoch + 1} - Validation')
         with torch.no_grad():
-            for batch_data in dev_loader:
+            for batch_data in val_pbar:
                 batch_data = [x.to(device) for x in batch_data]
                 inputs, targets = batch_data[:-1], batch_data[-1]
                 outputs = model(*inputs)
-                loss = criterion(outputs, targets)
+                # (real, pred)
+                loss = criterion(targets, outputs)
                 val_loss += loss.item() * batch_data[0].size(0)
+                val_pbar.set_postfix({'loss': loss.item()})
             val_loss /= len(dev_loader.dataset)
+        val_pbar.close()
 
         custom_hist.update(train_loss, val_loss)
 

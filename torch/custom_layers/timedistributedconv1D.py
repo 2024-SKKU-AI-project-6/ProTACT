@@ -9,7 +9,7 @@ class TimeDistributedConv1D(nn.Module):
             nn.Sequential(
                 nn.Conv1d(maxlen, out_channels,
                           kernel_size, padding=padding),
-                # nn.ReLU()
+                nn.ReLU()
             ) for _ in range(maxnum)  # there are 97 sentences
         ])
 

@@ -50,9 +50,10 @@ class LossFunctions(nn.Module):
         pred_trans = (pred * mask).t()
 
         sim_loss = 0.0
+        loss = 0.0
         cnt = 0.0
         trait_num = 9
-        print("trait num: ", trait_num)
+        # print("trait num: ", trait_num)
 
         for i in range(1, trait_num):
             for j in range(i + 1, trait_num):
@@ -74,8 +75,8 @@ class LossFunctions(nn.Module):
         mse = nn.MSELoss(reduction="none")
         return mse(real * mask, real * pred).mean()
 
-    def loss_function(self, real, pred):
-        mse_loss = self.mse_loss_function(real, pred)
-        ts_loss = self.trait_sim_loss_function(real, pred)
+    def forward(self, real, pred):
+        mse_loss = self.mse_loss_function(real, pred).float()
+        ts_loss = self.trait_sim_loss_function(real, pred).float()
         loss = self.alpha * mse_loss + (1 - self.alpha) * ts_loss
-        return loss
+        return loss.float()

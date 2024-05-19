@@ -19,9 +19,9 @@ class MultiHeadAttention(nn.Module):
 
     def scaled_dot_product_attention(self, query, key, value):
         matmul_qk = torch.matmul(query, key.transpose(-2, -1))
-        depth = query.size(-1)  # Use the depth of the query tensor
-        logits = matmul_qk / \
-            torch.sqrt(torch.tensor(depth, dtype=torch.float32))
+        # for just one number value not array
+        depth = torch.FloatTensor([key.shape[-1]])[0]
+        logits = matmul_qk / torch.sqrt(depth)
         attention_weights = F.softmax(logits, dim=-1)
         output = torch.matmul(attention_weights, value)
         return output, attention_weights

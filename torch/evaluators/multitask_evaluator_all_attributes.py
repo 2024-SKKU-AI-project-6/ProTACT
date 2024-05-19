@@ -60,6 +60,12 @@ class Evaluator():
             test_pred = model(*[torch.from_numpy(feat)
                               for feat in self.test_features_list]).numpy()
 
+        print(dev_pred.shape)
+        print(dev_pred)
+
+        print(test_pred.shape)
+        print(test_pred)
+
         dev_pred_int = dev_pred * 100
         dev_pred_dict = separate_attributes_for_scoring(
             dev_pred_int, self.X_dev_prompt_ids)

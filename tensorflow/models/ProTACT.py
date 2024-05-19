@@ -97,12 +97,12 @@ def total_loss(y_true, y_pred):
 
 def build_ProTACT(pos_vocab_size, vocab_size, maxnum, maxlen, readability_feature_count,
                   linguistic_feature_count, configs, output_dim, num_heads, embedding_weights):
-    embedding_dim = configs.EMBEDDING_DIM
-    dropout_prob = configs.DROPOUT
-    cnn_filters = configs.CNN_FILTERS
-    cnn_kernel_size = configs.CNN_KERNEL_SIZE
-    lstm_units = configs.LSTM_UNITS
-    num_heads = num_heads
+    embedding_dim = configs.EMBEDDING_DIM  # 50
+    dropout_prob = configs.DROPOUT  # 0.5
+    cnn_filters = configs.CNN_FILTERS  # 100
+    cnn_kernel_size = configs.CNN_KERNEL_SIZE  # 5
+    lstm_units = configs.LSTM_UNITS  # 100
+    num_heads = num_heads  # 2
 
     # 1. Essay Representation
     pos_input = layers.Input(shape=(maxnum*maxlen,),
@@ -170,6 +170,7 @@ def build_ProTACT(pos_vocab_size, vocab_size, maxnum, maxlen, readability_featur
 
     query = prompt_avg_MA_lstm_list
 
+    # 여기에서 합쳐진다.
     es_pr_MA_list = [MultiHeadAttention_PE(100, num_heads)(
         pos_avg_MA_lstm_list[i], query) for i in range(output_dim)]
     es_pr_MA_lstm_list = [layers.LSTM(lstm_units, return_sequences=True)(
@@ -181,6 +182,7 @@ def build_ProTACT(pos_vocab_size, vocab_size, maxnum, maxlen, readability_featur
     pos_avg_hz_lstm = tf.concat([layers.Reshape((1, lstm_units + linguistic_feature_count + readability_feature_count))(rep)
                                  for rep in es_pr_feat_concat], axis=-2)
 
+    # 1-9 까지의 traits 을 중심으로 점수 예측을 한다.
     final_preds = []
     for index, rep in enumerate(range(output_dim)):
         mask = np.array([True for _ in range(output_dim)])

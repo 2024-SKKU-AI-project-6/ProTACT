@@ -40,17 +40,17 @@ class ProTACT(nn.Module):
         # reshape to (none, maxnum, maxlen, embedding_dim)
 
         # for sentence level representation(what about conv2d?)
-        # self.essay_pos_conv = nn.Conv1d(
-        #     self.embedding_dim, self.filters, self.kernel_size, padding='valid')
+
         # self.essay_pos_conv = nn.Conv2d(self.max_num, self.max_len,
         #                                 self.embedding_dim, self.filters, self.kernel_size, padding='valid')
         self.essay_pos_conv = TimeDistributedConv1D(
             maxlen=self.max_len, maxnum=self.max_num, out_channels=self.filters, kernel_size=self.kernel_size, padding='valid')
-
+        # self.essay_pos_conv = nn.Conv1d(
+        #     self.embedding_dim, self.filters, self.kernel_size, padding='valid')
         self.essay_pos_attention = TimeDistributed(
             self.max_num, self.attention_module)
 
-        print("self.essay_pos_attention", self.essay_pos_attention)
+        # print("self.essay_pos_attention", self.essay_pos_attention)
 
         self.essay_linquistic = nn.Linear(
             linguistic_feature_count,  self.filters)
@@ -79,25 +79,26 @@ class ProTACT(nn.Module):
         self.prompt_dropout = nn.Dropout(self.dropout_prob)
         self.prompt_cnn = TimeDistributedConv1D(
             maxlen=self.max_len, maxnum=self.max_num, out_channels=self.filters, kernel_size=self.kernel_size, padding="valid")
+
         self.prompt_attention = TimeDistributed(
             self.max_num, self.attention_module)
 
-        self.prompt_MA = MultiHeadAttention(100, num_heads)
+        self.prompt_MA = MultiHeadAttention(100, self.num_heads)
         self.prompt_MA_lstm = nn.LSTM(
             input_size=100,  hidden_size=self.lstm_units, batch_first=True)
         self.prompt_avg_MA_lstm = Attention(
             input_shape=(None, None, self.filters))
 
         self.es_pr_MA_list = nn.ModuleList(
-            [MultiHeadAttention_PE(self.filters, num_heads) for _ in range(self.output_dim)])
+            [MultiHeadAttention_PE(100, self.num_heads) for _ in range(self.output_dim)])
         self.es_pr_MA_lstm_list = nn.ModuleList(
             [nn.LSTM(input_size=100,  hidden_size=self.lstm_units, batch_first=True) for _ in range(self.output_dim)])
         self.es_pr_avg_lstm_list = nn.ModuleList(
             [Attention(input_shape=(None, None, self.filters)) for _ in range(self.output_dim)])
 
         # why 2 * self.lstm_units?
-        self.final_dense_list = nn.ModuleList([nn.Linear(
-            2 * self.lstm_units + linguistic_feature_count + readability_feature_count, 1) for _ in range(self.output_dim)])
+        # self.final_dense_list = nn.ModuleList([nn.Linear(
+        #     2 * self.lstm_units + linguistic_feature_count + readability_feature_count, 1).to(torch.float32) for _ in range(self.output_dim)])
         self.att_attention = nn.MultiheadAttention(
             num_heads=1, embed_dim=self.filters+linguistic_feature_count + readability_feature_count)
 
@@ -117,30 +118,31 @@ class ProTACT(nn.Module):
         pos_x = self.essay_pos_embedding(pos_input)
         pos_x_maskedout = self.essay_pos_x_maskedout(pos_x)
         pos_drop_x = self.essay_pos_dropout(pos_x_maskedout).transpose(1, 2)
-        print("pos_drop_x", pos_drop_x.shape)
+        # print("pos_drop_x", pos_drop_x.shape)
         # reshape the tensor to (none, maxnum, maxlen, embedding_dim)
         pos_resh_W = pos_drop_x.reshape(-1, self.max_num,
                                         self.max_len, self.embedding_dim)
-        print("pos_resh_W", pos_resh_W.shape)
+        # (none, maxnum, embedding_dim, maxlen)
+        pos_resh_W = pos_resh_W.permute(0, 1, 3, 2)
         pos_zcnn = self.essay_pos_conv(pos_resh_W)
-        print("pos_zcnn", pos_zcnn.shape)
+        # (none, maxnum, embedding_dim, maxlen)
+        # print("pos_zcnn", pos_zcnn.shape)
         # for fitting the attention layer
-        # from here...
         # pos_zcnn = pos_zcnn.view(-1, , , self.filters)
         pos_avg_zcnn = self.essay_pos_attention(pos_zcnn)
-        print("pos_avg_zcnn", pos_avg_zcnn.shape)
+        # print("pos_avg_zcnn", pos_avg_zcnn.shape)
 
         pos_MA_list = [self.essay_pos_MA[i](
             pos_avg_zcnn) for i in range(self.output_dim)]
         pos_MA_lstm_list = [self.essay_pos_MA_LSTM[i](
             pos_MA_list[i]) for i in range(self.output_dim)]
         # print shape of pos_MA_lstm_list
-        print("pos_MA_lstm_list length: ", len(pos_MA_lstm_list))
-        print("pos_MA_lstm_list[0][0] shape: ", pos_MA_lstm_list[0][0].shape)
+        # print("pos_MA_lstm_list length: ", len(pos_MA_lstm_list))
+        # print("pos_MA_lstm_list[0][0] shape: ", pos_MA_lstm_list[0][0].shape)
         pos_avg_MA_lstm_list = [self.easay_pos_avg_MA_LSTM[i](
             pos_MA_lstm_list[i][0]) for i in range(self.output_dim)]
-        print("pos_avg_MA_lstm len", len(pos_avg_MA_lstm_list))
-        print("pos_avg_MA_lstm[0] shape", pos_avg_MA_lstm_list[0].shape)
+        # print("pos_avg_MA_lstm len", len(pos_avg_MA_lstm_list))
+        # print("pos_avg_MA_lstm[0] shape", pos_avg_MA_lstm_list[0].shape)
 
         # Prompt Representation
         prompt = self.prompt_embedding(prompt_word_input)
@@ -152,6 +154,7 @@ class ProTACT(nn.Module):
         prompt_drop_x = self.prompt_dropout(prompt_emb).transpose(1, 2)
         prompt_resh_W = prompt_drop_x.reshape(-1, self.max_num,
                                               self.max_len, self.embedding_dim)
+        prompt_resh_W.permute(0, 1, 3, 2)
         prompt_zcnn = self.prompt_cnn(prompt_resh_W)
         # for fitting the attention layer
         #  prompt_zcnn = prompt_zcnn.view(-1,
@@ -159,41 +162,63 @@ class ProTACT(nn.Module):
         prompt_avg_zcnn = self.prompt_attention(prompt_zcnn)
         prompt_MA = self.prompt_MA(prompt_avg_zcnn)
         prompt_MA_lstm = self.prompt_MA_lstm(prompt_MA)
-        print("prompt_MA_lstm", prompt_MA_lstm[0].shape)
+        # print("prompt_MA_lstm", prompt_MA_lstm[0].shape)
 
         prompt_avg_MA_lstm = self.prompt_avg_MA_lstm(prompt_MA_lstm[0])
 
         query = prompt_avg_MA_lstm
 
+        # print("query", query.shape)
+
+        # print(query[0])
+        # print(pos_avg_MA_lstm_list[0])
         es_pr_MA_list = [self.es_pr_MA_list[i](
             pos_avg_MA_lstm_list[i], query) for i in range(self.output_dim)]
+        # print("es_pr_MA_list[0]", es_pr_MA_list[0])
         es_pr_MA_lstm_list = [self.es_pr_MA_lstm_list[i](
             es_pr_MA_list[i]) for i in range(self.output_dim)]
+        # print("es_pr_MA_lstm_list", es_pr_MA_lstm_list)
         es_pr_avg_lstm_list = [self.es_pr_avg_lstm_list[i](
             es_pr_MA_lstm_list[i][0]) for i in range(self.output_dim)]
+        # print("es_pr_avg_lstm_list", es_pr_avg_lstm_list)
         es_pr_feat_concat = [torch.cat(
             [rep, linguistic_input, readability_input], dim=-1) for rep in es_pr_avg_lstm_list]
+        # print("es_pr_feat_concat", es_pr_feat_concat)
         pos_avg_hz_lstm = torch.stack(
             [rep.unsqueeze(1) for rep in es_pr_feat_concat], dim=1)
+        # print("pos_avg_hz_lstm", pos_avg_hz_lstm.shape)
+        pos_avg_hz_lstm = pos_avg_hz_lstm.squeeze(2)
 
+        # print("pos_avg_hz_lstm", pos_avg_hz_lstm.shape)
+
+        # print(pos_avg_hz_lstm)
         final_preds = []
         for index in range(self.output_dim):
             mask = [True] * self.output_dim
             mask[index] = False
             non_target_rep = pos_avg_hz_lstm[:, mask]
             target_rep = pos_avg_hz_lstm[:, index:index+1]
-            att_output, _ = self.att_attention(query=target_rep.transpose(0, 1),
+            att_output, _ = self.att_attention(query=target_rep.transpose(0, 1).to(torch.float32),
                                                key=non_target_rep.transpose(
-                0, 1),
-                value=non_target_rep.transpose(0, 1))
+                                                   0, 1).to(torch.float32),
+                                               value=non_target_rep.transpose(0, 1).to(torch.float32))
+            # print("att_output", att_output)
             att_output = att_output.transpose(0, 1)
             attention_concat = torch.cat([target_rep, att_output], dim=-1)
             attention_concat = attention_concat.view(
                 attention_concat.size(0), -1)
+            # attention_concat = attention_concat.to(
+            #     self.final_dense_list[index].weight.dtype)
+            # print("attention_concat")
+            # print(attention_concat)
             final_pred = torch.sigmoid(
-                self.final_dense_list[index](attention_concat))
+                nn.Linear(
+                    attention_concat.shape[-1], 1)(attention_concat.to(torch.float32)))
+            # print("final_pred", final_pred)
             final_preds.append(final_pred)
 
         y = torch.cat(final_preds, dim=-1)
 
+        # print("final layer", y.shape)
+        # print(y.shape)
         return y
