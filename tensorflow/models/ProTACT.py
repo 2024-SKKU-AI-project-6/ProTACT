@@ -65,14 +65,14 @@ def trait_sim_loss(y_true, y_pred):
     sim_loss = 0.0
     cnt = 0.0
     ts_loss = 0.
-    # trait_num = y_true.shape[1]
-    trait_num = 9
+    trait_num = y_true.shape[1]
+    # trait_num = 9
     print('trait num: ', trait_num)
 
     # start from idx 1, since we ignore the overall score
     for i in range(1, trait_num):
         for j in range(i+1, trait_num):
-            corr = (y_trans[i], y_trans[j])
+            corr = correlation_coefficient(y_trans[i], y_trans[j])
             sim_loss = tf.cond(corr >= 0.7, lambda: tf.add(sim_loss, 1-cosine_sim(y_pred_trans[i], y_pred_trans[j])),
                                lambda: tf.add(sim_loss, 0))
             cnt = tf.cond(corr >= 0.7, lambda: tf.add(cnt, 1),
