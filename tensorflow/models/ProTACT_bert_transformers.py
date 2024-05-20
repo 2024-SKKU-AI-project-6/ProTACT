@@ -121,14 +121,18 @@ def build_ProTACT(pos_vocab_size, vocab_size, maxnum, maxlen, readability_featur
     linguistic_input = layers.Input((linguistic_feature_count,), name='linguistic_input')
     readability_input = layers.Input((readability_feature_count,), name='readability_input')
 
-    pos_MA_list = [MultiHeadAttention(100,num_heads)(pos_avg_zcnn) for _ in range(output_dim)]
+    # pos_MA_list = [MultiHeadAttention(100,num_heads)(pos_avg_zcnn) for _ in range(output_dim)]
     # type_of_first_element = type(pos_MA_list[0])
     # print(type_of_first_element)
     
     pos_MA_bert_model = TFBertModel(bert_config)
-    print(pos_MA_list[1])
-    print(pos_avg_zcnn)
-    pos_MA_bert_list = [pos_MA_bert_model(pos_avg_zcnn).last_hidden_state for pos_avg_zcnn in pos_MA_list]
+    pos_MA_bert_list = [pos_MA_bert_model(pos_avg_zcnn) for _ in range(output_dim)]
+    
+    print("\n\n\n\n[*]pos_MA_list")
+    for pos_MA in pos_MA_bert_list:
+        print(pos_MA)
+    print("\n\n\n\n")
+    
     pos_avg_MA_lstm_list = [Attention()(pos_hz_lstm) for pos_hz_lstm in pos_MA_bert_list]
 
     ### 2. Prompt Representation

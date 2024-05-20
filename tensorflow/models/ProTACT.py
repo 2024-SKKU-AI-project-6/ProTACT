@@ -110,6 +110,12 @@ def build_ProTACT(pos_vocab_size, vocab_size, maxnum, maxlen, readability_featur
 
     pos_MA_list = [MultiHeadAttention(100,num_heads)(pos_avg_zcnn) for _ in range(output_dim)]
     pos_MA_lstm_list = [layers.LSTM(lstm_units, return_sequences=True)(pos_MA) for pos_MA in pos_MA_list] 
+    
+    print("\n\n\n\n[*]pos_MA_list")
+    for pos_MA in pos_MA_lstm_list:
+        print(pos_MA)
+    print("\n\n\n\n")
+    
     pos_avg_MA_lstm_list = [Attention()(pos_hz_lstm) for pos_hz_lstm in pos_MA_lstm_list] 
 
     ### 2. Prompt Representation
