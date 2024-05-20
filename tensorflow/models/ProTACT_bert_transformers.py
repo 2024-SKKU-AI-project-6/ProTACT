@@ -3,7 +3,7 @@ import tensorflow as tf
 import tensorflow.keras.layers as layers
 from tensorflow import keras
 import tensorflow.keras.backend as K
-from transformers import TFBertModel, BertConfig
+from transformers import TFBertModel, BertConfig, BertTokenizer
 
 from custom_layers.zeromasking import ZeroMaskedEntries
 from custom_layers.attention import Attention
@@ -124,7 +124,12 @@ def build_ProTACT(pos_vocab_size, vocab_size, maxnum, maxlen, readability_featur
     # pos_MA_list = [MultiHeadAttention(100,num_heads)(pos_avg_zcnn) for _ in range(output_dim)]
     # type_of_first_element = type(pos_MA_list[0])
     # print(type_of_first_element)
+    print("\n\n\n\n")
+    print(pos_avg_zcnn)
+    print("\n\n\n\n")
     
+    tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+    pos_tokenized = tokenizer(pos_avg_zcnn, padding=True, truncation=True, return_tensors='tf')
     pos_MA_bert_model = TFBertModel(bert_config)
     pos_MA_bert_list = [pos_MA_bert_model(pos_avg_zcnn) for _ in range(output_dim)]
     
