@@ -327,8 +327,7 @@ def main():
             batch_data = [x.to(device) for x in batch_data]
             inputs, targets = batch_data[:-1], batch_data[-1]
             outputs = model(*inputs)
-            targets = targets.float()
-            loss = criterion(targets, outputs)
+            loss = criterion(targets.float(), outputs)
             loss.backward()
             optimizer.step()
             train_loss += loss.item() * batch_data[0].size(0)
@@ -345,7 +344,7 @@ def main():
         #         batch_data = [x.to(device) for x in batch_data]
         #         inputs, targets = batch_data[:-1], batch_data[-1]
         #         outputs = model(*inputs)
-        #         loss = criterion(outputs, targets.float())
+        #         loss = criterion(targets.float(), outputs)
         #         val_loss += loss.item() * batch_data[0].size(0)
         #     val_loss /= len(dev_loader.dataset)
         #     val_pdar.set_postfix({'loss': loss.item()})
