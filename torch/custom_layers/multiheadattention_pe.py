@@ -17,7 +17,6 @@ class MultiHeadAttention_PE(nn.Module):
         self.value_dense = nn.Linear(embedding_dim, embedding_dim)
         self.dense = nn.Linear(embedding_dim, embedding_dim)
 
-    # i don't know how to implement this in pytorch but i think this is the equivalent(and chat gpt gave me this code)
     def scaled_dot_product_attention(self, query, key, value):
         matmul_qk = torch.matmul(query, key.transpose(-2, -1))
         depth = torch.FloatTensor([key.shape[-1]])[0]
@@ -28,16 +27,6 @@ class MultiHeadAttention_PE(nn.Module):
         # print("output", output.shape)
 
         return output, attention_weights
-
-    # def scaled_dot_product_attention(self, query, key, value):
-    #     matmul_qk = torch.matmul(query, key.transpose(-2, -1))
-    #     depth = torch.FloatTensor(key.shape[-1])
-    #     logits = matmul_qk / torch.sqrt(depth)
-    #     attention_weights = F.softmax(logits, dim=-1)
-    #     print("attetion weight", attention_weights.shape)
-    #     print("value", value.shape)
-    #     output = torch.matmul(attention_weights, value)
-    #     return output, attention_weights
 
     def split_heads(self, x, batch_size):
         x = x.view(batch_size, -1, self.num_heads, self.projection_dim)

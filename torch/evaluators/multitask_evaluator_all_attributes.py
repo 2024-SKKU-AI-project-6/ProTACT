@@ -1,7 +1,7 @@
 from metrics.metrics import *
 from utils.general_utils import separate_attributes_for_scoring, separate_and_rescale_attributes_for_scoring
 import torch
-
+from tqdm import tqdm
 '''import os
 cur_dir = os.getcwd()
 ckpt_dir = 'checkpoints'
@@ -12,11 +12,10 @@ os.makedirs(dir, exist_ok=True)
 
 class Evaluator():
 
-    def __init__(self, test_prompt_id, X_dev_prompt_ids, X_test_prompt_ids, dev_features_list, test_features_list,
-                 Y_dev, Y_test, seed):
-        self.test_prompt_id = test_prompt_id
-        self.dev_features_list = dev_features_list
-        self.test_features_list = test_features_list
+    def __init__(self, X_dev_prompt_ids, X_test_prompt_ids, dev_loader, test_loader,
+                 Y_dev, Y_test, seed, device):
+        self.dev_loader = dev_loader
+        self.test_loader = test_loader
         self.X_dev_prompt_ids, self.X_test_prompt_ids = X_dev_prompt_ids, X_test_prompt_ids
         self.Y_dev, self.Y_test = Y_dev, Y_test
         self.Y_dev_upscale = Y_dev * 100
@@ -29,6 +28,7 @@ class Evaluator():
         self.best_dev_kappa_set = {}
         self.best_test_kappa_set = {}
         self.seed = seed
+        self.device = device
 
     @staticmethod
     def calc_pearson(pred, original):
@@ -52,19 +52,22 @@ class Evaluator():
 
     def evaluate(self, model, epoch, print_info=True):
         self.current_epoch = epoch
-
         model.eval()
+
         with torch.no_grad():
-            dev_pred = model(*[torch.from_numpy(feat)
-                             for feat in self.dev_features_list]).numpy()
-            test_pred = model(*[torch.from_numpy(feat)
-                              for feat in self.test_features_list]).numpy()
+            dev_pred = []
+            for batch_data in self.dev_loader:
+                inputs, targets = batch_data[:-1], batch_data[-1]
+                pred = model(*inputs)
+                dev_pred.append(pred.cpu().numpy())
+            dev_pred = np.concatenate(dev_pred, axis=0)
 
-        print(dev_pred.shape)
-        print(dev_pred)
-
-        print(test_pred.shape)
-        print(test_pred)
+            test_pred = []
+            for batch_data in self.test_loader:
+                inputs, targets = batch_data[:-1], batch_data[-1]
+                pred = model(*inputs)
+                test_pred.append(pred.cpu().numpy())
+            test_pred = np.concatenate(test_pred, axis=0)
 
         dev_pred_int = dev_pred * 100
         dev_pred_dict = separate_attributes_for_scoring(
@@ -72,20 +75,19 @@ class Evaluator():
         test_pred_dict = separate_and_rescale_attributes_for_scoring(
             test_pred, self.X_test_prompt_ids)
 
-        pearson_dev = {key: self.calc_pearson(dev_pred_dict[key], self.Y_dev_org[key]) for key in
-                       dev_pred_dict.keys()}
-        pearson_test = {key: self.calc_pearson(test_pred_dict[key], self.Y_test_org[key]) for key in
-                        test_pred_dict.keys()}
+        pearson_dev = {key: self.calc_pearson(
+            dev_pred_dict[key], self.Y_dev_org[key]) for key in dev_pred_dict.keys()}
+        pearson_test = {key: self.calc_pearson(
+            test_pred_dict[key], self.Y_test_org[key]) for key in test_pred_dict.keys()}
+        spearman_dev = {key: self.calc_spearman(
+            dev_pred_dict[key], self.Y_dev_org[key]) for key in dev_pred_dict.keys()}
+        spearman_test = {key: self.calc_spearman(
+            test_pred_dict[key], self.Y_test_org[key]) for key in test_pred_dict.keys()}
 
-        spearman_dev = {key: self.calc_spearman(dev_pred_dict[key], self.Y_dev_org[key]) for key in
-                        dev_pred_dict.keys()}
-        spearman_test = {key: self.calc_spearman(test_pred_dict[key], self.Y_test_org[key]) for key in
-                         test_pred_dict.keys()}
-
-        self.kappa_dev = {key: self.calc_kappa(dev_pred_dict[key], self.Y_dev_org[key]) for key in
-                          dev_pred_dict.keys()}
-        self.kappa_test = {key: self.calc_kappa(test_pred_dict[key], self.Y_test_org[key]) for key in
-                           test_pred_dict.keys()}
+        self.kappa_dev = {key: self.calc_kappa(
+            dev_pred_dict[key], self.Y_dev_org[key]) for key in dev_pred_dict.keys()}
+        self.kappa_test = {key: self.calc_kappa(
+            test_pred_dict[key], self.Y_test_org[key]) for key in test_pred_dict.keys()}
 
         self.dev_kappa_mean = np.mean(list(self.kappa_dev.values()))
         self.test_kappa_mean = np.mean(list(self.kappa_test.values()))
@@ -96,11 +98,13 @@ class Evaluator():
             self.best_dev_kappa_set = self.kappa_dev
             self.best_test_kappa_set = self.kappa_test
             self.best_dev_epoch = epoch
-            # Save the best model using PyTorch's torch.save
-            torch.save(model.state_dict(),
-                       f"checkpoint_best{self.test_prompt_id}_{self.seed}.pth")
-            print(
-                f"Save best model to checkpoint_best{self.test_prompt_id}_{self.seed}.pth")
+
+            '''
+            file_path = os.path.join(dir, f"checkpoint_best{self.test_prompt_id}_{self.seed}.pt")
+            torch.save(model.state_dict(), file_path)
+            print("Save best model to", file_path)
+            '''
+
         if print_info:
             self.print_info()
 

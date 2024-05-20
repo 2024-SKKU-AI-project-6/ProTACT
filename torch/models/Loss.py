@@ -72,8 +72,8 @@ class LossFunctions(nn.Module):
     def mse_loss_function(self, real, pred):
         mask_value = -1
         mask = (real != mask_value).type(torch.float32)
-        mse = nn.MSELoss(reduction="none")
-        return mse(real * mask, real * pred).mean()
+        mse = nn.MSELoss()
+        return mse(real * mask, real * pred)
 
     def forward(self, real, pred):
         mse_loss = self.mse_loss_function(real, pred).float()

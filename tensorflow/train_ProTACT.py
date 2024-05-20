@@ -256,7 +256,7 @@ def main():
         start_time = time.time()
         model.fit(
             train_features_list,
-            Y_train, batch_size=batch_size, epochs=5, verbose=0, shuffle=True, validation_data=(dev_features_list, Y_dev), callbacks=[custom_hist, checkpoint])
+            Y_train, batch_size=batch_size, epochs=1, verbose=0, shuffle=True, validation_data=(dev_features_list, Y_dev), callbacks=[custom_hist, checkpoint])
         tt_time = time.time() - start_time
         print("Training one epoch in %.3f s" % tt_time)
         evaluator.evaluate(model, ii + 1)

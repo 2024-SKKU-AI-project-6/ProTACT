@@ -227,20 +227,15 @@ def main():
     )
     dev_loader = DataLoader(dev_dataset, batch_size=batch_size)
 
-    dev_features_list = [
-        torch.from_numpy(X_dev_pos),
-        torch.from_numpy(X_dev_prompt),
-        torch.from_numpy(X_dev_prompt_pos),
-        torch.from_numpy(X_dev_linguistic_features),
-        torch.from_numpy(X_dev_readability)
-    ]
-    test_features_list = [
+    test_dataset = TensorDataset(
         torch.from_numpy(X_test_pos),
         torch.from_numpy(X_test_prompt),
         torch.from_numpy(X_test_prompt_pos),
         torch.from_numpy(X_test_linguistic_features),
-        torch.from_numpy(X_test_readability)
-    ]
+        torch.from_numpy(X_test_readability),
+        torch.from_numpy(Y_test)
+    )
+    test_loader = DataLoader(test_dataset, batch_size=batch_size)
 
     # build model
     model = ProTACT(
@@ -248,19 +243,22 @@ def main():
         X_train_readability.shape[1], X_train_linguistic_features.shape[1],
         configs, Y_train.shape[1], num_heads, embed_table
     )
+    for param in model.parameters():
+        print(param.requires_grad)
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model = model.to(device)
 
     # loss function and optimizer
     criterion = LossFunctions(alpha=0.7)
-    optimizer = torch.optim.RMSprop(
-        model.parameters(), lr=configs.LEARNING_RATE)
+    # optimizer = torch.optim.RMSprop(
+    #     model.parameters(), lr=configs.LEARNING_RATE, alpha=0.9)
+    optimizer = torch.optim.Adam(model.parameters())
 
     evaluator = AllAttEvaluator(
-        test_prompt_id, dev_data['prompt_ids'], test_data['prompt_ids'],
-        [x.numpy() for x in dev_features_list],
-        [x.numpy() for x in test_features_list], Y_dev, Y_test, seed
+        dev_data['prompt_ids'], test_data['prompt_ids'],
+        dev_loader, test_loader,
+        Y_dev, Y_test, seed, device
     )
 
     evaluator.evaluate(model, -1, print_info=True)
@@ -320,6 +318,10 @@ def main():
         train_loss = 0.0
         train_pbar = tqdm(train_loader, desc=f'Epoch {epoch + 1} - Training')
         for batch_data in train_pbar:
+            # 각 layer의 이름과 파라미터 출력
+            # for name, child in model.named_children():
+            #     for param in child.parameters():
+            #         print(name, param)
             optimizer.zero_grad()
             batch_data = [x.to(device) for x in batch_data]
             inputs, targets = batch_data[:-1], batch_data[-1]
@@ -334,28 +336,27 @@ def main():
         train_pbar.close()
 
         # validate
-        model.eval()
-        val_loss = 0.0
-        val_pbar = tqdm(dev_loader, desc=f'Epoch {epoch + 1} - Validation')
-        with torch.no_grad():
-            for batch_data in val_pbar:
-                batch_data = [x.to(device) for x in batch_data]
-                inputs, targets = batch_data[:-1], batch_data[-1]
-                outputs = model(*inputs)
-                # (real, pred)
-                loss = criterion(targets, outputs)
-                val_loss += loss.item() * batch_data[0].size(0)
-                val_pbar.set_postfix({'loss': loss.item()})
-            val_loss /= len(dev_loader.dataset)
-        val_pbar.close()
+        # model.eval()
+        # val_loss = 0.0
+        # val_pdar = tqdm(dev_loader, desc=f'Epoch {epoch + 1} - Training')
+        # with torch.no_grad():
+        #     for batch_data in dev_loader:
+        #         batch_data = [x.to(device) for x in batch_data]
+        #         inputs, targets = batch_data[:-1], batch_data[-1]
+        #         outputs = model(*inputs)
+        #         loss = criterion(outputs, targets.float())
+        #         val_loss += loss.item() * batch_data[0].size(0)
+        #     val_loss /= len(dev_loader.dataset)
+        #     val_pdar.set_postfix({'loss': loss.item()})
 
-        custom_hist.update(train_loss, val_loss)
+        # val_pdar.close()
+        # custom_hist.update(train_loss, val_loss)
 
         # evaluate
         tt_time = time.time() - start_time
         print(f"Training one epoch in {tt_time:.3f} s")
         evaluator.evaluate(model, epoch + 1)
-        print(f"Train Loss: {train_loss:.4f} || Val Loss: {val_loss:.4f}")
+        # print(f"Train Loss: {train_loss:.4f} || Val Loss: {val_loss:.4f}")
 
     evaluator.print_final_info()
 

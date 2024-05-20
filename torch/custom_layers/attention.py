@@ -27,7 +27,7 @@ class Attention(nn.Module):
         elif self.activation == 'tanh':
             w = torch.tensordot(self.att_V, torch.tanh(w), dims=[[0], [2]])
 
-        w = F.softmax(w)
+        w = F.softmax(w, dim=-1)
         y = x * w.unsqueeze(2).expand_as(x)
         if self.op == 'attsum':
             y = torch.sum(y, dim=1)
