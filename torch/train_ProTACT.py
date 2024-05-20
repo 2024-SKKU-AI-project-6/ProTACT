@@ -243,8 +243,8 @@ def main():
         X_train_readability.shape[1], X_train_linguistic_features.shape[1],
         configs, Y_train.shape[1], num_heads, embed_table
     )
-    for param in model.parameters():
-        print(param.requires_grad)
+    # for param in model.parameters():
+    #     print(param.requires_grad)
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model = model.to(device)
@@ -253,12 +253,13 @@ def main():
     criterion = LossFunctions(alpha=0.7)
     # optimizer = torch.optim.RMSprop(
     #     model.parameters(), lr=configs.LEARNING_RATE, alpha=0.9)
-    optimizer = torch.optim.Adam(model.parameters())
+    optimizer = torch.optim.RMSprop(
+        model.parameters(), lr=configs.LEARNING_RATE)
 
     evaluator = AllAttEvaluator(
         dev_data['prompt_ids'], test_data['prompt_ids'],
         dev_loader, test_loader,
-        Y_dev, Y_test, seed, device
+        Y_dev, Y_test, seed, device, criterion
     )
 
     evaluator.evaluate(model, -1, print_info=True)
@@ -355,8 +356,8 @@ def main():
         # evaluate
         tt_time = time.time() - start_time
         print(f"Training one epoch in {tt_time:.3f} s")
+        print(f"Train Loss: {train_loss:.4f}")
         evaluator.evaluate(model, epoch + 1)
-        # print(f"Train Loss: {train_loss:.4f} || Val Loss: {val_loss:.4f}")
 
     evaluator.print_final_info()
 
