@@ -64,7 +64,7 @@ class Evaluator():
                 pred = model(*inputs)
                 loss = self.criterion(pred, targets)  # 개발 데이터에 대한 loss 계산
                 dev_loss += loss.item()  # 개발 데이터의 전체 loss 누적
-                dev_pred.append(pred)
+                dev_pred.append(pred.cpu())
             dev_pred = torch.cat(dev_pred, dim=0)
             dev_loss /= len(self.dev_loader)  # 개발 데이터의 평균 loss 계산
 
@@ -76,7 +76,7 @@ class Evaluator():
                 pred = model(*inputs)
                 loss = self.criterion(pred, targets)  # 테스트 데이터에 대한 loss 계산
                 test_loss += loss.item()  # 테스트 데이터의 전체 loss 누적
-                test_pred.append(pred)
+                test_pred.append(pred.cpu())
             test_pred = torch.cat(test_pred, dim=0)
             test_loss /= len(self.test_loader)  # 테스트 데이터의 평균 loss 계산
 
