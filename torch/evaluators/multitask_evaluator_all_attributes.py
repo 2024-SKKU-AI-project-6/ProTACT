@@ -57,6 +57,7 @@ class Evaluator():
         with torch.no_grad():
             dev_pred = []
             for batch_data in self.dev_loader:
+                batch_data = [x.to(self.device) for x in batch_data]
                 inputs, targets = batch_data[:-1], batch_data[-1]
                 pred = model(*inputs)
                 dev_pred.append(pred.cpu().numpy())
@@ -64,6 +65,7 @@ class Evaluator():
 
             test_pred = []
             for batch_data in self.test_loader:
+                batch_data = [x.to(self.device) for x in batch_data]
                 inputs, targets = batch_data[:-1], batch_data[-1]
                 pred = model(*inputs)
                 test_pred.append(pred.cpu().numpy())
