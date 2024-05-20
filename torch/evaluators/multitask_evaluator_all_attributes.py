@@ -85,8 +85,8 @@ class Evaluator():
         print("Epoch: {}, Dev Loss: {:.4f}, Test Loss: {:.4f}".format(
             self.current_epoch, dev_loss, test_loss))
 
-        print("dev_pred_shape: ", dev_pred.shape)
-        print("test_pred_shape: ", test_pred.shape)
+        print("dev_pred[0:9]: ", dev_pred[0:9])
+        print("test_pred[0:9]: ", test_pred[0:9])
 
         dev_pred_int = dev_pred * 100
         dev_pred_dict = separate_attributes_for_scoring(

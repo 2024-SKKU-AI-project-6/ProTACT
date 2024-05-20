@@ -55,6 +55,9 @@ class Evaluator():
         dev_pred = model.predict(self.dev_features_list, batch_size=32)
         test_pred = model.predict(self.test_features_list, batch_size=32)
 
+        print("dev_pred[0:9]: ", dev_pred[0:9])
+        print("test_pred[0:9]: ", test_pred[0:9])
+
         dev_pred_int = dev_pred * 100
         dev_pred_dict = separate_attributes_for_scoring(
             dev_pred_int, self.X_dev_prompt_ids)
