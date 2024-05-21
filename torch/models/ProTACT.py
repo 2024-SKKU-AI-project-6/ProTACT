@@ -93,10 +93,13 @@ class ProTACT(nn.Module):
             [Attention(input_shape=(None, None, self.filters)) for _ in range(self.output_dim)])
 
         # 이것도 trait 별로 레이어를 다르게 해야하는지....고민
-        self.att_attention = nn.MultiheadAttention(
-            num_heads=1, embed_dim=self.filters+linguistic_feature_count + readability_feature_count, batch_first=True)
-        self.final_dense_list = nn.ModuleList([nn.Linear(
-            2 * (self.lstm_units + linguistic_feature_count + readability_feature_count), 1).to(torch.float32) for _ in range(self.output_dim)])
+        self.att_attention = nn.ModuleList([nn.MultiheadAttention(
+            num_heads=1, embed_dim=self.filters+linguistic_feature_count + readability_feature_count, batch_first=True) for _ in range(self.output_dim)])
+        self.final_dense_list = nn.ModuleList([
+            nn.Sequential(
+                nn.Linear(
+                    2 * (self.lstm_units + linguistic_feature_count + readability_feature_count), 1)
+            ).to(torch.float32) for _ in range(self.output_dim)])
         # self.final_dense = nn.Sequential(
         #     nn.Linear(374, 1),  # hardcoded
         #     nn.Sigmoid()
@@ -185,10 +188,10 @@ class ProTACT(nn.Module):
             mask[index] = False
             non_target_rep = pos_avg_hz_lstm[:, mask]
             target_rep = pos_avg_hz_lstm[:, index:index+1]
-            att_output, _ = self.att_attention(query=target_rep.to(torch.float32),
-                                               key=non_target_rep.to(
-                                                   torch.float32),
-                                               value=non_target_rep.to(torch.float32))
+            att_output, _ = self.att_attention[index](query=target_rep.to(torch.float32),
+                                                      key=non_target_rep.to(
+                torch.float32),
+                value=non_target_rep.to(torch.float32))
             attention_concat = torch.cat([target_rep, att_output], dim=-1)
             # print("attention_concat", attention_concat.shape)
             # flatten?
@@ -198,8 +201,8 @@ class ProTACT(nn.Module):
 
             # final_pred = self.final_dense(attention_concat.to(torch.float32))
 
-            final_pred = self.final_dense_list[index](
-                attention_concat.to(torch.float32))
+            final_pred = torch.sigmoid(self.final_dense_list[index](
+                attention_concat.to(torch.float32)))
             # final_pred = torch.sigmoid(
             #     nn.Linear(
             #         attention_concat.shape[-1], 1)(attention_concat.to(torch.float32)))

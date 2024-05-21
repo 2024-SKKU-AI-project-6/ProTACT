@@ -53,6 +53,8 @@ class Evaluator():
 
     def evaluate(self, model, epoch, print_info=True):
         self.current_epoch = epoch
+        # print("y_dev_org: ", self.Y_dev_org)
+
         model.eval()
 
         with torch.no_grad():
@@ -82,17 +84,16 @@ class Evaluator():
                 test_pred, axis=0)  # NumPy 배열로 concatenate
             test_loss /= len(self.test_loader)  # 테스트 데이터의 평균 loss 계산
 
-        print("Epoch: {}, Dev Loss: {:.4f}, Test Loss: {:.4f}".format(
-            self.current_epoch, dev_loss, test_loss))
-
-        print("dev_pred[0:9]: ", dev_pred[0:9])
-        print("test_pred[0:9]: ", test_pred[0:9])
+        # print("dev_pred[0:9]: ", dev_pred[0:9])
+        # print("test_pred[0:9]: ", test_pred[0:9])
 
         dev_pred_int = dev_pred * 100
         dev_pred_dict = separate_attributes_for_scoring(
             dev_pred_int, self.X_dev_prompt_ids)
         test_pred_dict = separate_and_rescale_attributes_for_scoring(
             test_pred, self.X_test_prompt_ids)
+
+        # print("devpredint", dev_pred_int)
 
         # pearson_dev = {key: self.calc_pearson(
         #     dev_pred_dict[key], self.Y_dev_org[key]) for key in dev_pred_dict.keys()}
@@ -127,6 +128,8 @@ class Evaluator():
 
         if print_info:
             self.print_info()
+            print("Epoch: {}, Dev Loss: {:.4f}, Test Loss: {:.4f}".format(
+                self.current_epoch, dev_loss, test_loss))
 
     def print_info(self):
         print('CURRENT EPOCH: {}'.format(self.current_epoch))
