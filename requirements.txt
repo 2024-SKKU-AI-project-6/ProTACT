@@ -1,5 +1,6 @@
 numpy
 tensorflow
+transformers
 torch
 torchtext
 pandas
