@@ -1,3 +1,10 @@
+#!/usr/bin/env python
+# coding: utf-8
+
+# In[8]:
+
+
+
 import os
 import time
 import argparse
@@ -15,6 +22,274 @@ from evaluators.multitask_evaluator_all_attributes import Evaluator as AllAttEva
 import matplotlib.pyplot as plt
 
 
+# In[2]:
+
+
+# print("main started")
+# parser = argparse.ArgumentParser(description="ProTACT model")
+# parser.add_argument('--test_prompt_id', type=int,
+#                     default=1, help='prompt id of test essay set')
+# parser.add_argument('--seed', type=int, default=12, help='set random seed')
+# parser.add_argument('--model_name', type=str,
+#                     choices=['ProTACT'],
+#                     help='name of model')
+# parser.add_argument('--num_heads', type=int, default=2,
+#                     help='set the number of heads in Multihead Attention')
+# parser.add_argument('--features_path', type=str,
+#                     default='data/hand_crafted_v3.csv')
+test_prompt_id = 1
+seed = 1
+num_heads = 2
+features_path = '../data/hand_crafted_v3.csv'
+
+np.random.seed(seed)
+torch.manual_seed(seed)
+random.seed(seed)
+os.environ['PYTHONHASHSEED'] = str(seed)
+
+print(torch.cuda.is_available())
+print("Test prompt id is {} of type {}".format(
+    test_prompt_id, type(test_prompt_id)))
+print("Seed: {}".format(seed))
+
+configs = Configs()
+
+data_path = configs.DATA_PATH
+train_path = data_path + str(test_prompt_id) + '/train.pk'
+dev_path = data_path + str(test_prompt_id) + '/dev.pk'
+test_path = data_path + str(test_prompt_id) + '/test.pk'
+pretrained_embedding = configs.PRETRAINED_EMBEDDING
+embedding_path = configs.EMBEDDING_PATH
+readability_path = configs.READABILITY_PATH
+prompt_path = configs.PROMPT_PATH
+vocab_size = configs.VOCAB_SIZE
+epochs = configs.EPOCHS
+batch_size = configs.BATCH_SIZE
+print("Numhead : ", num_heads, " | Features : ",
+      features_path, " | Pos_emb : ", configs.EMBEDDING_DIM)
+
+read_configs = {
+    'train_path': train_path,
+    'dev_path': dev_path,
+    'test_path': test_path,
+    'features_path': features_path,
+    'readability_path': readability_path,
+    'vocab_size': vocab_size
+}
+
+
+# In[3]:
+
+
+# read POS for prompts
+pos_vocab = read_pos_vocab(read_configs)
+prompt_pos_data = read_prompts_pos(
+    prompt_path, pos_vocab)  # for prompt POS embedding
+
+# read words for prompts
+word_vocab = read_word_vocab(read_configs)
+# for prompt word embedding
+prompt_data = read_prompts_we(prompt_path, word_vocab)
+
+train_data, dev_data, test_data = read_essays_prompts(
+    read_configs, prompt_data, prompt_pos_data, pos_vocab)
+
+if pretrained_embedding:
+    embedd_dict, embedd_dim, _ = load_word_embedding_dict(embedding_path)
+    embedd_matrix = build_embedd_table(
+        word_vocab, embedd_dict, embedd_dim, caseless=True)
+    embed_table = embedd_matrix
+else:
+    embed_table = None
+
+
+# In[4]:
+
+
+max_sentlen = max(train_data['max_sentlen'],
+                  dev_data['max_sentlen'], test_data['max_sentlen'])
+max_sentnum = max(train_data['max_sentnum'],
+                  dev_data['max_sentnum'], test_data['max_sentnum'])
+prompt_max_sentlen = prompt_data['max_sentlen']
+prompt_max_sentnum = prompt_data['max_sentnum']
+
+print('max sent length: {}'.format(max_sentlen))
+print('max sent num: {}'.format(max_sentnum))
+print('max prompt sent length: {}'.format(prompt_max_sentlen))
+print('max prompt sent num: {}'.format(prompt_max_sentnum))
+
+train_data['y_scaled'] = get_scaled_down_scores(
+    train_data['data_y'], train_data['prompt_ids'])
+dev_data['y_scaled'] = get_scaled_down_scores(
+    dev_data['data_y'], dev_data['prompt_ids'])
+test_data['y_scaled'] = get_scaled_down_scores(
+    test_data['data_y'], test_data['prompt_ids'])
+
+X_train_pos = pad_hierarchical_text_sequences(
+    train_data['pos_x'], max_sentnum, max_sentlen)
+X_dev_pos = pad_hierarchical_text_sequences(
+    dev_data['pos_x'], max_sentnum, max_sentlen)
+X_test_pos = pad_hierarchical_text_sequences(
+    test_data['pos_x'], max_sentnum, max_sentlen)
+
+X_train_pos = X_train_pos.reshape(
+    (X_train_pos.shape[0], X_train_pos.shape[1] * X_train_pos.shape[2]))
+X_dev_pos = X_dev_pos.reshape(
+    (X_dev_pos.shape[0], X_dev_pos.shape[1] * X_dev_pos.shape[2]))
+X_test_pos = X_test_pos.reshape(
+    (X_test_pos.shape[0], X_test_pos.shape[1] * X_test_pos.shape[2]))
+
+X_train_prompt = pad_hierarchical_text_sequences(
+    train_data['prompt_words'], max_sentnum, max_sentlen)
+X_dev_prompt = pad_hierarchical_text_sequences(
+    dev_data['prompt_words'], max_sentnum, max_sentlen)
+X_test_prompt = pad_hierarchical_text_sequences(
+    test_data['prompt_words'], max_sentnum, max_sentlen)
+
+X_train_prompt = X_train_prompt.reshape(
+    (X_train_prompt.shape[0], X_train_prompt.shape[1] * X_train_prompt.shape[2]))
+X_dev_prompt = X_dev_prompt.reshape(
+    (X_dev_prompt.shape[0], X_dev_prompt.shape[1] * X_dev_prompt.shape[2]))
+X_test_prompt = X_test_prompt.reshape(
+    (X_test_prompt.shape[0], X_test_prompt.shape[1] * X_test_prompt.shape[2]))
+
+X_train_prompt_pos = pad_hierarchical_text_sequences(
+    train_data['prompt_pos'], max_sentnum, max_sentlen)
+X_dev_prompt_pos = pad_hierarchical_text_sequences(
+    dev_data['prompt_pos'], max_sentnum, max_sentlen)
+X_test_prompt_pos = pad_hierarchical_text_sequences(
+    test_data['prompt_pos'], max_sentnum, max_sentlen)
+
+X_train_prompt_pos = X_train_prompt_pos.reshape(
+    (X_train_prompt_pos.shape[0], X_train_prompt_pos.shape[1] * X_train_prompt_pos.shape[2]))
+X_dev_prompt_pos = X_dev_prompt_pos.reshape(
+    (X_dev_prompt_pos.shape[0], X_dev_prompt_pos.shape[1] * X_dev_prompt_pos.shape[2]))
+X_test_prompt_pos = X_test_prompt_pos.reshape(
+    (X_test_prompt_pos.shape[0], X_test_prompt_pos.shape[1] * X_test_prompt_pos.shape[2]))
+
+X_train_linguistic_features = np.array(train_data['features_x'])
+X_dev_linguistic_features = np.array(dev_data['features_x'])
+X_test_linguistic_features = np.array(test_data['features_x'])
+
+X_train_readability = np.array(train_data['readability_x'])
+X_dev_readability = np.array(dev_data['readability_x'])
+X_test_readability = np.array(test_data['readability_x'])
+
+Y_train = np.array(train_data['y_scaled'])
+Y_dev = np.array(dev_data['y_scaled'])
+Y_test = np.array(test_data['y_scaled'])
+
+X_train_attribute_rel = get_attribute_masks(Y_train)
+X_dev_attribute_rel = get_attribute_masks(Y_dev)
+X_test_attribute_rel = get_attribute_masks(Y_test)
+
+print('================================')
+print('X_train_pos: ', X_train_pos.shape)
+print('X_train_prompt_words: ', X_train_prompt.shape)
+print('X_train_prompt_pos: ', X_train_prompt_pos.shape)
+print('X_train_readability: ', X_train_readability.shape)
+print('X_train_ling: ', X_train_linguistic_features.shape)
+print('X_train_attribute_rel: ', X_train_attribute_rel.shape)
+print('Y_train: ', Y_train.shape)
+
+print('================================')
+print('X_dev_pos: ', X_dev_pos.shape)
+print('X_dev_prompt_words: ', X_dev_prompt.shape)
+print('X_dev_prompt_pos: ', X_dev_prompt_pos.shape)
+print('X_dev_readability: ', X_dev_readability.shape)
+print('X_dev_ling: ', X_dev_linguistic_features.shape)
+print('X_dev_attribute_rel: ', X_dev_attribute_rel.shape)
+print('Y_dev: ', Y_dev.shape)
+
+print('================================')
+print('X_test_pos: ', X_test_pos.shape)
+print('X_test_prompt_words: ', X_test_prompt.shape)
+print('X_test_prompt_pos: ', X_test_prompt_pos.shape)
+print('X_test_readability: ', X_test_readability.shape)
+print('X_test_ling: ', X_test_linguistic_features.shape)
+print('X_test_attribute_rel: ', X_test_attribute_rel.shape)
+print('Y_test: ', Y_test.shape)
+print('================================')
+
+
+# In[5]:
+
+
+# to torch tensor
+train_dataset = TensorDataset(
+    torch.from_numpy(X_train_pos),
+    torch.from_numpy(X_train_prompt),
+    torch.from_numpy(X_train_prompt_pos),
+    torch.from_numpy(X_train_linguistic_features),
+    torch.from_numpy(X_train_readability),
+    torch.from_numpy(Y_train)
+)
+train_loader = DataLoader(
+    train_dataset, batch_size=batch_size, shuffle=True)
+
+dev_dataset = TensorDataset(
+    torch.from_numpy(X_dev_pos),
+    torch.from_numpy(X_dev_prompt),
+    torch.from_numpy(X_dev_prompt_pos),
+    torch.from_numpy(X_dev_linguistic_features),
+    torch.from_numpy(X_dev_readability),
+    torch.from_numpy(Y_dev)
+)
+dev_loader = DataLoader(dev_dataset, batch_size=batch_size)
+
+dev_features_list = [
+    torch.from_numpy(X_dev_pos),
+    torch.from_numpy(X_dev_prompt),
+    torch.from_numpy(X_dev_prompt_pos),
+    torch.from_numpy(X_dev_linguistic_features),
+    torch.from_numpy(X_dev_readability)
+]
+test_features_list = [
+    torch.from_numpy(X_test_pos),
+    torch.from_numpy(X_test_prompt),
+    torch.from_numpy(X_test_prompt_pos),
+    torch.from_numpy(X_test_linguistic_features),
+    torch.from_numpy(X_test_readability)
+]
+
+
+# In[9]:
+
+
+# build model
+model = ProTACT(
+    len(pos_vocab), len(word_vocab), max_sentnum, max_sentlen,
+    X_train_readability.shape[1], X_train_linguistic_features.shape[1],
+    configs, Y_train.shape[1], num_heads, embed_table
+)
+
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+model = model.to(device)
+
+# loss function and optimizer
+criterion = LossFunctions(alpha=0.7)
+optimizer = torch.optim.RMSprop(
+    model.parameters(), lr=configs.LEARNING_RATE)
+
+for name, param in model.named_parameters():
+    print(f"Layer: {name} | Size: {param.size()}")
+
+
+# In[11]:
+
+
+evaluator = AllAttEvaluator(
+    test_prompt_id, dev_data['prompt_ids'], test_data['prompt_ids'],
+    [x.numpy() for x in dev_features_list],
+    [x.numpy() for x in test_features_list], Y_dev, Y_test, seed
+)
+
+evaluator.evaluate(model, -1, print_info=True)
+
+
+# In[ ]:
+
+
 class CustomHistory:
     def __init__(self):
         self.train_loss = []
@@ -23,297 +298,74 @@ class CustomHistory:
     def update(self, train_loss, val_loss):
         self.train_loss.append(train_loss)
         self.val_loss.append(val_loss)
+        
+        
+custom_hist = CustomHistory()
 
+for epoch in range(epochs): # 50
+    print(f'Epoch {epoch + 1}/{epochs}')
+    start_time = time.time()
 
-def main():
-    print("main started")
-    parser = argparse.ArgumentParser(description="ProTACT model")
-    parser.add_argument('--test_prompt_id', type=int,
-                        default=1, help='prompt id of test essay set')
-    parser.add_argument('--seed', type=int, default=12, help='set random seed')
-    parser.add_argument('--model_name', type=str,
-                        choices=['ProTACT'],
-                        help='name of model')
-    parser.add_argument('--num_heads', type=int, default=2,
-                        help='set the number of heads in Multihead Attention')
-    parser.add_argument('--features_path', type=str,
-                        default='data/hand_crafted_v3.csv')
-    args = parser.parse_args()
-    test_prompt_id = args.test_prompt_id
-    seed = args.seed
-    num_heads = args.num_heads
-    features_path = args.features_path + str(test_prompt_id) + '.csv'
+    # train
+    model.train()
+    train_loss = 0.0
+    for batch_data in train_loader:
+        optimizer.zero_grad()
+        batch_data = [x.to(device) for x in batch_data]
+        inputs, targets = batch_data[:-1], batch_data[-1]
+        outputs = model(*inputs)
+        loss = criterion.loss_function(outputs, targets)
+        loss.backward()
+        optimizer.step()
+        train_loss += loss.item() * batch_data[0].size(0)
+    train_loss /= len(train_loader.dataset)
 
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    random.seed(seed)
-    os.environ['PYTHONHASHSEED'] = str(seed)
-
-    print(torch.cuda.is_available())
-    print("Test prompt id is {} of type {}".format(
-        test_prompt_id, type(test_prompt_id)))
-    print("Seed: {}".format(seed))
-
-    configs = Configs()
-
-    data_path = configs.DATA_PATH
-    train_path = data_path + str(test_prompt_id) + '/train.pk'
-    dev_path = data_path + str(test_prompt_id) + '/dev.pk'
-    test_path = data_path + str(test_prompt_id) + '/test.pk'
-    pretrained_embedding = configs.PRETRAINED_EMBEDDING
-    embedding_path = configs.EMBEDDING_PATH
-    readability_path = configs.READABILITY_PATH
-    prompt_path = configs.PROMPT_PATH
-    vocab_size = configs.VOCAB_SIZE
-    epochs = configs.EPOCHS
-    batch_size = configs.BATCH_SIZE
-    print("Numhead : ", num_heads, " | Features : ",
-          features_path, " | Pos_emb : ", configs.EMBEDDING_DIM)
-
-    read_configs = {
-        'train_path': train_path,
-        'dev_path': dev_path,
-        'test_path': test_path,
-        'features_path': features_path,
-        'readability_path': readability_path,
-        'vocab_size': vocab_size
-    }
-    # read POS for prompts
-    pos_vocab = read_pos_vocab(read_configs)
-    prompt_pos_data = read_prompts_pos(
-        prompt_path, pos_vocab)  # for prompt POS embedding
-
-    # read words for prompts
-    word_vocab = read_word_vocab(read_configs)
-    # for prompt word embedding
-    prompt_data = read_prompts_we(prompt_path, word_vocab)
-
-    train_data, dev_data, test_data = read_essays_prompts(
-        read_configs, prompt_data, prompt_pos_data, pos_vocab)
-
-    if pretrained_embedding:
-        embedd_dict, embedd_dim, _ = load_word_embedding_dict(embedding_path)
-        embedd_matrix = build_embedd_table(
-            word_vocab, embedd_dict, embedd_dim, caseless=True)
-        embed_table = embedd_matrix
-    else:
-        embed_table = None
-
-    max_sentlen = max(train_data['max_sentlen'],
-                      dev_data['max_sentlen'], test_data['max_sentlen'])
-    max_sentnum = max(train_data['max_sentnum'],
-                      dev_data['max_sentnum'], test_data['max_sentnum'])
-    prompt_max_sentlen = prompt_data['max_sentlen']
-    prompt_max_sentnum = prompt_data['max_sentnum']
-
-    print('max sent length: {}'.format(max_sentlen))
-    print('max sent num: {}'.format(max_sentnum))
-    print('max prompt sent length: {}'.format(prompt_max_sentlen))
-    print('max prompt sent num: {}'.format(prompt_max_sentnum))
-
-    train_data['y_scaled'] = get_scaled_down_scores(
-        train_data['data_y'], train_data['prompt_ids'])
-    dev_data['y_scaled'] = get_scaled_down_scores(
-        dev_data['data_y'], dev_data['prompt_ids'])
-    test_data['y_scaled'] = get_scaled_down_scores(
-        test_data['data_y'], test_data['prompt_ids'])
-
-    X_train_pos = pad_hierarchical_text_sequences(
-        train_data['pos_x'], max_sentnum, max_sentlen)
-    X_dev_pos = pad_hierarchical_text_sequences(
-        dev_data['pos_x'], max_sentnum, max_sentlen)
-    X_test_pos = pad_hierarchical_text_sequences(
-        test_data['pos_x'], max_sentnum, max_sentlen)
-
-    X_train_pos = X_train_pos.reshape(
-        (X_train_pos.shape[0], X_train_pos.shape[1] * X_train_pos.shape[2]))
-    X_dev_pos = X_dev_pos.reshape(
-        (X_dev_pos.shape[0], X_dev_pos.shape[1] * X_dev_pos.shape[2]))
-    X_test_pos = X_test_pos.reshape(
-        (X_test_pos.shape[0], X_test_pos.shape[1] * X_test_pos.shape[2]))
-
-    X_train_prompt = pad_hierarchical_text_sequences(
-        train_data['prompt_words'], max_sentnum, max_sentlen)
-    X_dev_prompt = pad_hierarchical_text_sequences(
-        dev_data['prompt_words'], max_sentnum, max_sentlen)
-    X_test_prompt = pad_hierarchical_text_sequences(
-        test_data['prompt_words'], max_sentnum, max_sentlen)
-
-    X_train_prompt = X_train_prompt.reshape(
-        (X_train_prompt.shape[0], X_train_prompt.shape[1] * X_train_prompt.shape[2]))
-    X_dev_prompt = X_dev_prompt.reshape(
-        (X_dev_prompt.shape[0], X_dev_prompt.shape[1] * X_dev_prompt.shape[2]))
-    X_test_prompt = X_test_prompt.reshape(
-        (X_test_prompt.shape[0], X_test_prompt.shape[1] * X_test_prompt.shape[2]))
-
-    X_train_prompt_pos = pad_hierarchical_text_sequences(
-        train_data['prompt_pos'], max_sentnum, max_sentlen)
-    X_dev_prompt_pos = pad_hierarchical_text_sequences(
-        dev_data['prompt_pos'], max_sentnum, max_sentlen)
-    X_test_prompt_pos = pad_hierarchical_text_sequences(
-        test_data['prompt_pos'], max_sentnum, max_sentlen)
-
-    X_train_prompt_pos = X_train_prompt_pos.reshape(
-        (X_train_prompt_pos.shape[0], X_train_prompt_pos.shape[1] * X_train_prompt_pos.shape[2]))
-    X_dev_prompt_pos = X_dev_prompt_pos.reshape(
-        (X_dev_prompt_pos.shape[0], X_dev_prompt_pos.shape[1] * X_dev_prompt_pos.shape[2]))
-    X_test_prompt_pos = X_test_prompt_pos.reshape(
-        (X_test_prompt_pos.shape[0], X_test_prompt_pos.shape[1] * X_test_prompt_pos.shape[2]))
-
-    X_train_linguistic_features = np.array(train_data['features_x'])
-    X_dev_linguistic_features = np.array(dev_data['features_x'])
-    X_test_linguistic_features = np.array(test_data['features_x'])
-
-    X_train_readability = np.array(train_data['readability_x'])
-    X_dev_readability = np.array(dev_data['readability_x'])
-    X_test_readability = np.array(test_data['readability_x'])
-
-    Y_train = np.array(train_data['y_scaled'])
-    Y_dev = np.array(dev_data['y_scaled'])
-    Y_test = np.array(test_data['y_scaled'])
-
-    X_train_attribute_rel = get_attribute_masks(Y_train)
-    X_dev_attribute_rel = get_attribute_masks(Y_dev)
-    X_test_attribute_rel = get_attribute_masks(Y_test)
-
-    print('================================')
-    print('X_train_pos: ', X_train_pos.shape)
-    print('X_train_prompt_words: ', X_train_prompt.shape)
-    print('X_train_prompt_pos: ', X_train_prompt_pos.shape)
-    print('X_train_readability: ', X_train_readability.shape)
-    print('X_train_ling: ', X_train_linguistic_features.shape)
-    print('X_train_attribute_rel: ', X_train_attribute_rel.shape)
-    print('Y_train: ', Y_train.shape)
-
-    print('================================')
-    print('X_dev_pos: ', X_dev_pos.shape)
-    print('X_dev_prompt_words: ', X_dev_prompt.shape)
-    print('X_dev_prompt_pos: ', X_dev_prompt_pos.shape)
-    print('X_dev_readability: ', X_dev_readability.shape)
-    print('X_dev_ling: ', X_dev_linguistic_features.shape)
-    print('X_dev_attribute_rel: ', X_dev_attribute_rel.shape)
-    print('Y_dev: ', Y_dev.shape)
-
-    print('================================')
-    print('X_test_pos: ', X_test_pos.shape)
-    print('X_test_prompt_words: ', X_test_prompt.shape)
-    print('X_test_prompt_pos: ', X_test_prompt_pos.shape)
-    print('X_test_readability: ', X_test_readability.shape)
-    print('X_test_ling: ', X_test_linguistic_features.shape)
-    print('X_test_attribute_rel: ', X_test_attribute_rel.shape)
-    print('Y_test: ', Y_test.shape)
-    print('================================')
-
-    # to torch tensor
-    train_dataset = TensorDataset(
-        torch.from_numpy(X_train_pos),
-        torch.from_numpy(X_train_prompt),
-        torch.from_numpy(X_train_prompt_pos),
-        torch.from_numpy(X_train_linguistic_features),
-        torch.from_numpy(X_train_readability),
-        torch.from_numpy(Y_train)
-    )
-    train_loader = DataLoader(
-        train_dataset, batch_size=batch_size, shuffle=True)
-
-    dev_dataset = TensorDataset(
-        torch.from_numpy(X_dev_pos),
-        torch.from_numpy(X_dev_prompt),
-        torch.from_numpy(X_dev_prompt_pos),
-        torch.from_numpy(X_dev_linguistic_features),
-        torch.from_numpy(X_dev_readability),
-        torch.from_numpy(Y_dev)
-    )
-    dev_loader = DataLoader(dev_dataset, batch_size=batch_size)
-
-    dev_features_list = [
-        torch.from_numpy(X_dev_pos),
-        torch.from_numpy(X_dev_prompt),
-        torch.from_numpy(X_dev_prompt_pos),
-        torch.from_numpy(X_dev_linguistic_features),
-        torch.from_numpy(X_dev_readability)
-    ]
-    test_features_list = [
-        torch.from_numpy(X_test_pos),
-        torch.from_numpy(X_test_prompt),
-        torch.from_numpy(X_test_prompt_pos),
-        torch.from_numpy(X_test_linguistic_features),
-        torch.from_numpy(X_test_readability)
-    ]
-
-    # build model
-    model = ProTACT(
-        len(pos_vocab), len(word_vocab), max_sentnum, max_sentlen,
-        X_train_readability.shape[1], X_train_linguistic_features.shape[1],
-        configs, Y_train.shape[1], num_heads, embed_table
-    )
-
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    model = model.to(device)
-
-    # loss function and optimizer
-    criterion = LossFunctions(alpha=0.7)
-    optimizer = torch.optim.RMSprop(
-        model.parameters(), lr=configs.LEARNING_RATE)
-
-    evaluator = AllAttEvaluator(
-        test_prompt_id, dev_data['prompt_ids'], test_data['prompt_ids'],
-        [x.numpy() for x in dev_features_list],
-        [x.numpy() for x in test_features_list], Y_dev, Y_test, seed
-    )
-
-    evaluator.evaluate(model, -1, print_info=True)
-
-    custom_hist = CustomHistory()
-
-    for epoch in range(epochs):
-        print(f'Epoch {epoch + 1}/{epochs}')
-        start_time = time.time()
-
-        # train
-        model.train()
-        train_loss = 0.0
-        for batch_data in train_loader:
-            optimizer.zero_grad()
+    # validate
+    model.eval()
+    val_loss = 0.0
+    with torch.no_grad():
+        for batch_data in dev_loader:
             batch_data = [x.to(device) for x in batch_data]
             inputs, targets = batch_data[:-1], batch_data[-1]
             outputs = model(*inputs)
+            #loss = criterion(outputs, targets)
             loss = criterion.loss_function(outputs, targets)
-            loss.backward()
-            optimizer.step()
-            train_loss += loss.item() * batch_data[0].size(0)
-        train_loss /= len(train_loader.dataset)
+            val_loss += loss.item() * batch_data[0].size(0)
+        val_loss /= len(dev_loader.dataset)
 
-        # validate
-        model.eval()
-        val_loss = 0.0
-        with torch.no_grad():
-            for batch_data in dev_loader:
-                batch_data = [x.to(device) for x in batch_data]
-                inputs, targets = batch_data[:-1], batch_data[-1]
-                outputs = model(*inputs)
-                loss = criterion(outputs, targets)
-                val_loss += loss.item() * batch_data[0].size(0)
-            val_loss /= len(dev_loader.dataset)
+    custom_hist.update(train_loss, val_loss)
 
-        custom_hist.update(train_loss, val_loss)
+    # evaluate
+    tt_time = time.time() - start_time
+    print(f"Training one epoch in {tt_time:.3f} s")
+    evaluator.evaluate(model, epoch + 1)
+    print(f"Train Loss: {train_loss:.4f} || Val Loss: {val_loss:.4f}")
 
-        # evaluate
-        tt_time = time.time() - start_time
-        print(f"Training one epoch in {tt_time:.3f} s")
-        evaluator.evaluate(model, epoch + 1)
-        print(f"Train Loss: {train_loss:.4f} || Val Loss: {val_loss:.4f}")
+evaluator.print_final_info()
 
-    evaluator.print_final_info()
-
-    '''# show the loss as the graph
-    fig, loss_graph = plt.subplots()
-    loss_graph.plot(custom_hist.train_loss,'y',label='train loss')
-    loss_graph.plot(custom_hist.val_loss,'r',label='val loss')
-    loss_graph.set_xlabel('epoch')
-    loss_graph.set_ylabel('loss')
-    plt.savefig(str('images/protact/test_prompt_'+ str(test_prompt_id) + '_seed_' + str(seed) + '_loss.png'))'''
+'''# show the loss as the graph
+fig, loss_graph = plt.subplots()
+loss_graph.plot(custom_hist.train_loss,'y',label='train loss')
+loss_graph.plot(custom_hist.val_loss,'r',label='val loss')
+loss_graph.set_xlabel('epoch')
+loss_graph.set_ylabel('loss')
+plt.savefig(str('images/protact/test_prompt_'+ str(test_prompt_id) + '_seed_' + str(seed) + '_loss.png'))'''
 
 
-if __name__ == '__main__':
-    main()
+# In[ ]:
+
+
+Y_train.shape
+
+
+# In[ ]:
+
+
+
+
+
+# In[ ]:
+
+
+
+
