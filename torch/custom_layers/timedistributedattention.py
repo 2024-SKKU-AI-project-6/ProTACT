@@ -8,7 +8,7 @@ class TimeDistributed(nn.Module):
         self.module = nn.ModuleList([
             nn.Sequential(
                 module,  # the module is attention layer
-                nn.ReLU()
+                # nn.ReLU()
             ) for _ in range(maxnum)  # there are 97 sentences
         ])
 
