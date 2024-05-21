@@ -206,6 +206,6 @@ class ProTACT(nn.Module):
 
             final_preds.append(final_pred)
 
-        y = torch.cat(final_preds, dim=-1)
+        y = torch.cat(final_preds, dim=1)
 
         return y
