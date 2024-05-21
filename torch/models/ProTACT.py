@@ -92,17 +92,15 @@ class ProTACT(nn.Module):
         self.es_pr_avg_lstm_list = nn.ModuleList(
             [Attention(input_shape=(None, None, self.filters)) for _ in range(self.output_dim)])
 
-        # why 2 * self.lstm_units?
-        # self.final_dense_list = nn.ModuleList([nn.Linear(
-        #     2 * self.lstm_units + linguistic_feature_count + readability_feature_count, 1).to(torch.float32) for _ in range(self.output_dim)])
-
         # 이것도 trait 별로 레이어를 다르게 해야하는지....고민
         self.att_attention = nn.MultiheadAttention(
             num_heads=1, embed_dim=self.filters+linguistic_feature_count + readability_feature_count, batch_first=True)
-        self.final_dense = nn.Sequential(
-            nn.Linear(374, 1),  # hardcoded
-            nn.Sigmoid()
-        )
+        self.final_dense_list = nn.ModuleList([nn.Linear(
+            2 * (self.lstm_units + linguistic_feature_count + readability_feature_count), 1).to(torch.float32) for _ in range(self.output_dim)])
+        # self.final_dense = nn.Sequential(
+        #     nn.Linear(374, 1),  # hardcoded
+        #     nn.Sigmoid()
+        # )
 
     def forward(self, pos_input, prompt_word_input, prompt_pos_input, linguistic_input, readability_input):
         # Essay Representation
@@ -198,8 +196,10 @@ class ProTACT(nn.Module):
                 attention_concat.size(0), -1)
             # print("attention_concat: flatten", attention_concat.shape)
 
-            final_pred = self.final_dense(attention_concat.to(torch.float32))
+            # final_pred = self.final_dense(attention_concat.to(torch.float32))
 
+            final_pred = self.final_dense_list[index](
+                attention_concat.to(torch.float32))
             # final_pred = torch.sigmoid(
             #     nn.Linear(
             #         attention_concat.shape[-1], 1)(attention_concat.to(torch.float32)))

@@ -327,8 +327,8 @@ def main():
             batch_data = [x.to(device) for x in batch_data]
             inputs, targets = batch_data[:-1], batch_data[-1]
             outputs = model(*inputs)
-            print("output[0:5]", outputs[0:5])
-            print("target[0:5]", targets[0:5])
+            # print("output[0:5]", outputs[0:5])
+            # print("target[0:5]", targets[0:5])
             loss = criterion(targets.float(), outputs)
             loss.backward()
             optimizer.step()
