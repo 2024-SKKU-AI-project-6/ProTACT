@@ -64,7 +64,8 @@ class Evaluator():
                 batch_data = [x.to(self.device) for x in batch_data]
                 inputs, targets = batch_data[:-1], batch_data[-1]
                 pred = model(*inputs)
-                loss = self.criterion(targets, pred)  # 개발 데이터에 대한 loss 계산
+                loss = self.criterion.loss_function(
+                    targets, pred)  # 개발 데이터에 대한 loss 계산
                 dev_loss += loss.item()  # 개발 데이터의 전체 loss 누적
                 dev_pred.append(pred.cpu().numpy())
             # NumPy 배열로 concatenate
@@ -77,7 +78,8 @@ class Evaluator():
                 batch_data = [x.to(self.device) for x in batch_data]
                 inputs, targets = batch_data[:-1], batch_data[-1]
                 pred = model(*inputs)
-                loss = self.criterion(targets, pred)  # 테스트 데이터에 대한 loss 계산
+                loss = self.criterion.loss_function(
+                    targets, pred)  # 테스트 데이터에 대한 loss 계산
                 test_loss += loss.item()  # 테스트 데이터의 전체 loss 누적
                 test_pred.append(pred.cpu().numpy())
             test_pred = np.concatenate(

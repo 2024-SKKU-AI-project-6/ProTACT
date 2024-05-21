@@ -329,7 +329,7 @@ def main():
             outputs = model(*inputs)
             # print("output[0:5]", outputs[0:5])
             # print("target[0:5]", targets[0:5])
-            loss = criterion(targets.float(), outputs)
+            loss = criterion.loss_function(targets.float(), outputs)
             loss.backward()
             optimizer.step()
             train_loss += loss.item() * batch_data[0].size(0)

@@ -4,7 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-class LossFunctions(nn.Module):
+class LossFunctions():
     def __init__(self, alpha=0.7):
         super(LossFunctions, self).__init__()
         self.alpha = alpha
@@ -75,7 +75,7 @@ class LossFunctions(nn.Module):
         mse = nn.MSELoss()
         return mse(real * mask, real * pred)
 
-    def forward(self, real, pred):
+    def loss_function(self, real, pred):
         mse_loss = self.mse_loss_function(real, pred).float()
         ts_loss = self.trait_sim_loss_function(real, pred).float()
         loss = self.alpha * mse_loss + (1 - self.alpha) * ts_loss
