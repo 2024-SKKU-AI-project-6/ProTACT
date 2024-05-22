@@ -49,6 +49,7 @@ class LossFunctions(nn.Module):
         real_trans = (real * mask).t()
         pred_trans = (pred * mask).t()
 
+        loss = 0.0
         sim_loss = 0.0
         cnt = 0.0
         trait_num = 9

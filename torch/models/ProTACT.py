@@ -112,12 +112,12 @@ class ProTACT(nn.Module):
         pos_x = self.essay_pos_embedding(pos_input) # (pos_vocab_size, embedding_dim): (None, 4850, 50)
         pos_x_maskedout = self.essay_pos_x_maskedout(pos_x) # (None, pos_vocab_size, embedding_dim)
         pos_drop_x = self.essay_pos_dropout(pos_x_maskedout)  # (None, pos_vocab_size, embedding_dim)
-        print("pos_drop_x: ", pos_drop_x.shape)
+        # print("pos_drop_x: ", pos_drop_x.shape)
         
         # reshape the tensor to (none, maxnum, maxlen, embedding_dim)
         pos_resh_W = pos_drop_x.reshape(-1, self.max_num,
                                         self.max_len, self.embedding_dim) # (None, 97, 50, 50)
-        print("pos_resh_W", pos_resh_W.shape) 
+        # print("pos_resh_W", pos_resh_W.shape) 
         
         # TimeDistributed 실행
         pos_resh_W = pos_resh_W.permute(0,1,3,2) # (none, maxnum, embedding_dim, maxlen)
@@ -128,7 +128,7 @@ class ProTACT(nn.Module):
             output_t  = output_t.unsqueeze(1) # (None, 1, 46,100)
             pos_zcnn = torch.cat((pos_zcnn, output_t ), 1) #(None, 2, 100, 46)
         pos_zcnn = pos_zcnn.permute(0,1,3,2)
-        print("pos_zcnn", pos_zcnn.shape) # (none, 97, 46, 100)
+        # print("pos_zcnn", pos_zcnn.shape) # (none, 97, 46, 100)
         
         # for fitting the attention layer
         # from here...
@@ -141,7 +141,7 @@ class ProTACT(nn.Module):
             output_t = self.essay_pos_attention_list[i](pos_zcnn[:,i,:]) # (None,100)
             output_t = output_t.unsqueeze(1)
             pos_avg_zcnn = torch.cat((pos_avg_zcnn, output_t),1)
-        print("pos_avg_zcnn", pos_avg_zcnn.shape)
+        # print("pos_avg_zcnn", pos_avg_zcnn.shape)
         
         
         pos_MA_list = [self.essay_pos_MA[i](pos_avg_zcnn) for i in range(self.output_dim)]
@@ -171,7 +171,7 @@ class ProTACT(nn.Module):
             output_t  = output_t.unsqueeze(1) # (None, 1, 46,100)
             prompt_zcnn = torch.cat((prompt_zcnn, output_t ), 1) #(None, 2, 100, 46)
         prompt_zcnn = prompt_zcnn.permute(0,1,3,2)
-        print("prompt_zcnn", prompt_zcnn.shape) # (none, 97, 46, 100)
+        # print("prompt_zcnn", prompt_zcnn.shape) # (none, 97, 46, 100)
         
         #TimeDistributed Attention
         prompt_avg_zcnn = torch.tensor([])
@@ -180,7 +180,7 @@ class ProTACT(nn.Module):
             output_t = output_t.unsqueeze(1)
             prompt_avg_zcnn = torch.cat((prompt_avg_zcnn, output_t),1)
         
-        print("prompt_avg_zcnn", prompt_avg_zcnn.shape)
+        # print("prompt_avg_zcnn", prompt_avg_zcnn.shape)
         
         # for fitting the attention layer
         # prompt_zcnn = prompt_zcnn.view(-1,
@@ -189,7 +189,7 @@ class ProTACT(nn.Module):
 
         prompt_MA = self.prompt_MA(prompt_avg_zcnn)
         
-        print("prompt_MA_lstm shape: ", prompt_MA.shape)
+        # print("prompt_MA_lstm shape: ", prompt_MA.shape)
         prompt_MA_lstm= self.prompt_MA_lstm(prompt_MA)
         prompt_avg_MA_lstm = self.prompt_avg_MA_lstm(prompt_MA_lstm[0])
         
@@ -199,33 +199,33 @@ class ProTACT(nn.Module):
         es_pr_MA_lstm_list = [self.es_pr_MA_lstm_list[i](es_pr_MA_list[i])[0] for i in range(self.output_dim)]
         es_pr_avg_lstm_list = [self.es_pr_avg_lstm_list[i](es_pr_MA_lstm_list[i]) for i in range(self.output_dim)]
         es_pr_feat_concat = [torch.cat([rep, linguistic_input, readability_input], dim=-1) for rep in es_pr_avg_lstm_list]
-        print("linguistic_input: ",linguistic_input.shape)
-        print("readability_input: ",readability_input.shape)
-        print("es_pr_feat_concat: ",len(es_pr_feat_concat),", ",es_pr_feat_concat[0].shape)
+        # print("linguistic_input: ",linguistic_input.shape)
+        # print("readability_input: ",readability_input.shape)
+        # print("es_pr_feat_concat: ",len(es_pr_feat_concat),", ",es_pr_feat_concat[0].shape)
         
         pos_avg_hz_lstm = torch.tensor([])
         for es_pr_feat in es_pr_feat_concat:
             es_pr_feat_unsqueeze = es_pr_feat.unsqueeze(1)
             pos_avg_hz_lstm = torch.cat((pos_avg_hz_lstm,es_pr_feat_unsqueeze),1)
-        print(pos_avg_hz_lstm[0][0])
+        
         
         final_preds = []
         for index in range(self.output_dim):
             mask = [True] * self.output_dim
             mask[index] = False
             non_target_rep = pos_avg_hz_lstm[:, mask]
-            print("non_target_rep:",non_target_rep.shape)
+            # print("non_target_rep:",non_target_rep.shape)
             target_rep = pos_avg_hz_lstm[:, index:index+1]
-            print("target_rep:",target_rep.shape)
+            # print("target_rep:",target_rep.shape)
                 
             target_rep_t = target_rep.transpose(0,1).to(torch.float32)
             non_target_rep_t = non_target_rep.transpose(0,1).to(torch.float32)
             
             att_output, _ = self.att_attention_list[index](query=target_rep_t,key=non_target_rep_t,value=non_target_rep_t)
             att_output = att_output.transpose(0,1)
-            print("att_output:",att_output.shape)
+            # print("att_output:",att_output.shape)
             attention_concat = torch.cat([target_rep.to(torch.float32), att_output], dim=-1)
-            print("attention_concat:",attention_concat.shape)
+            # print("attention_concat:",attention_concat.shape)
             attention_concat = self.flatten_list[index](attention_concat)
             final_pred = torch.sigmoid(
                 self.final_dense_list[index](attention_concat))
@@ -234,5 +234,5 @@ class ProTACT(nn.Module):
             
 
         y = torch.cat(final_preds, dim=-1)
-        print("y:",y.shape)
+        # print("y:",y.shape)
         return y

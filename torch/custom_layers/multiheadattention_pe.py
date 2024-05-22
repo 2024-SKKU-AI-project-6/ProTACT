@@ -50,9 +50,6 @@ class MultiHeadAttention_PE(nn.Module):
         scaled_attention, _ = self.scaled_dot_product_attention(query, key, value)
         scaled_attention = scaled_attention.permute(0, 2, 1, 3)
 
-        print("########################")
-        print("scaled_attention: ", scaled_attention)
-        print("########################")
         # (batch_size, seq_len, embedding_dim)
         concat_attention = scaled_attention.reshape(batch_size, -1, self.embedding_dim)
         y = self.dense(concat_attention)
