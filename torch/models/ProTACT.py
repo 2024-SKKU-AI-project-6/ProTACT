@@ -193,8 +193,6 @@ class ProTACT(nn.Module):
         prompt_MA_lstm= self.prompt_MA_lstm(prompt_MA)
         prompt_avg_MA_lstm = self.prompt_avg_MA_lstm(prompt_MA_lstm[0])
         
-        
-        ################################ all good #################################
 
         query = prompt_avg_MA_lstm
         es_pr_MA_list = [self.es_pr_MA_list[i]( pos_avg_MA_lstm_list[i], query) for i in range(self.output_dim)]
