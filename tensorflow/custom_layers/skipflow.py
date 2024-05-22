@@ -1,7 +1,9 @@
 import numpy as np
 import tensorflow.keras.backend as K
 import tensorflow as tf
-from tensorflow.keras.layers import Layer, InputSpec
+from tensorflow.keras.layers import Layer, InputSpec, Input, Embedding, LSTM, Dense, Lambda, Concatenate
+from tensorflow.keras.optimizers import Adam
+from tensorflow.keras import initializers
 from scipy import stats
 
 
@@ -12,7 +14,7 @@ class NeuralTensorlayer(Layer):
 		self.input_dim=input_dim
 		if self.input_dim:
 			kwargs['input_shape']=(self.input_dim,)
-		super(NeuralTensorlayer,self).s__init__(**kwargs)
+		super(NeuralTensorlayer,self).__init__(**kwargs)
 
 	def call(self,inputs,mask=None):
 		e1=inputs[0]
@@ -72,11 +74,34 @@ class TemporalMeanPooling(Layer):
 
 
 class SkipFlow(Layer):
-    def __init__(self, **kwargs):
+    def __init__(self, lstm_dim, k, maxlen, eta, delta, seed, lr, lr_decay, **kwargs):
         super(SkipFlow, self).__init__(**kwargs)
+        self.lstm_dim = lstm_dim
+        self.k = k
+        self.maxlen = maxlen
+        self.eta = eta
+        self.delta = delta
+        self.seed = seed
+        self.lr = lr
+        self.lr_decay = lr_decay
+        self.build_model()
+        
+        
+    def build_model(self):
         self.temporal_mean_pooling = TemporalMeanPooling()
-        self.neural_tensor_layer = NeuralTensorlayer()
+        self.neural_tensor_layer = NeuralTensorlayer(output_dim=self.k, input_dim=self.lstm_dim)
+        self.lstm_layer = LSTM(self.lstm_dim, return_sequences=True)
+        self.concat_layer = Concatenate()
+        self.dense_layer = Dense(1, activation="sigmoid")
         
-    def call(self, x):
         
-        
+    def call(self, inputs):
+        hidden_states = self.lstm_layer(inputs)
+        htm = TemporalMeanPooling()(hidden_states)
+        pairs = [((self.eta + i * self.delta) % self.maxlen, (self.eta + i * self.delta + self.delta) % self.maxlen)
+                 for i in range(self.maxlen // self.delta)]
+        hidden_pairs = [(Lambda(lambda t: t[:, p[0], :])(hidden_states),
+                         Lambda(lambda t: t[:, p[1], :])(hidden_states)) for p in pairs]
+        coherence = [self.dense_layer(self.neural_tensor_layer([hp[0], hp[1]])) for hp in hidden_pairs]
+        co_tm = self.concat_layer(coherence[:] + [htm])
+        return co_tm

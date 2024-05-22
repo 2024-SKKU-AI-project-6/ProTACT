@@ -5,6 +5,7 @@ from tensorflow import keras
 import tensorflow.keras.backend as K
 from custom_layers.zeromasking import ZeroMaskedEntries
 from custom_layers.attention import Attention
+from custom_layers.skipflow import SkipFlow
 from custom_layers.multiheadattention_pe import MultiHeadAttention_PE
 from custom_layers.multiheadattention import MultiHeadAttention
 
@@ -125,8 +126,7 @@ def build_ProTACT(pos_vocab_size, vocab_size, maxnum, maxlen, readability_featur
     readability_input = layers.Input((readability_feature_count,), name='readability_input')
 
     pos_MA_list = [MultiHeadAttention(100,num_heads)(pos_avg_zcnn) for _ in range(output_dim)]
-    pos_MA_lstm_list = [layers.LSTM(lstm_units, return_sequences=True)(pos_MA) for pos_MA in pos_MA_list] 
-    pos_avg_MA_lstm_list = [Attention()(pos_hz_lstm) for pos_hz_lstm in pos_MA_lstm_list] 
+    pos_avg_MA_lstm_list = [SkipFlow(lstm_dim=lstm_units, k = 4, maxlen=maxlen, eta=13, delta=50, seed=1, lr=2e-4, lr_decay=2e-6)(pos_MA) for pos_MA in pos_MA_list] 
 
     ### 2. Prompt Representation
     # word embedding

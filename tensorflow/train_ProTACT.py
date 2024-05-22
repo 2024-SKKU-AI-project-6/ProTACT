@@ -12,18 +12,7 @@ from evaluators.multitask_evaluator_all_attributes import Evaluator as AllAttEva
 from tensorflow import keras
 import matplotlib.pyplot as plt
 
-class CustomHistory(keras.callbacks.Callback):
-    def init(self):
-        self.train_loss = []
-        self.val_loss = []
-        self.train_acc = []
-        self.val_acc = []        
-        
-    def on_epoch_end(self, batch, logs={}):
-        self.train_loss.append(logs.get('loss'))
-        self.val_loss.append(logs.get('val_loss'))
-        self.train_acc.append(logs.get('acc'))
-        self.val_acc.append(logs.get('val_acc'))
+
 
 def main():
     parser = argparse.ArgumentParser(description="ProTACT model")
@@ -50,6 +39,7 @@ def main():
 
     configs = Configs()
 
+    checkpoint_path = configs.CHECKPOINT_PATH
     data_path = configs.DATA_PATH
     train_path = data_path + str(test_prompt_id) + '/train.pk'
     dev_path = data_path + str(test_prompt_id) + '/dev.pk'
@@ -185,21 +175,48 @@ def main():
 
     evaluator.evaluate(model, -1, print_info=True)
 
-    custom_hist = CustomHistory() 
-    custom_hist.init() 
-    
-    for ii in range(epochs):
-        print('Epoch %s/%s' % (str(ii + 1), epochs))
-        start_time = time.time()
-        model.fit(
-            train_features_list,
-            Y_train, batch_size=batch_size, epochs=1, verbose=0, shuffle=True, validation_data=(dev_features_list,Y_dev),callbacks=[custom_hist])
-        tt_time = time.time() - start_time
-        print("Training one epoch in %.3f s" % tt_time)
-        evaluator.evaluate(model, ii + 1)
-        print("Train Loss: ", custom_hist.train_loss[-1], "|| Val Loss: ", custom_hist.val_loss[-1])
+    checkpoint = tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_path+'model/bestmodel{epoch}.weights.h5',
+                                                    save_freq='epoch',
+                                                    save_weights_only = True,
+                                                    monitor='val_loss',
+                                                    mode='min'
+                                                    )
 
-    evaluator.print_final_info()
+    class CustomHistory(tf.keras.callbacks.Callback):
+        def on_train_begin(self, logs=None):
+            self.train_loss = []
+            self.val_loss = []
+            self.train_acc = []
+            self.val_acc = [] 
+            self.epoch_times = []
+
+        def on_epoch_begin(self, epoch, logs=None):
+            self.start_time = time.time()
+
+        def on_epoch_end(self, epoch, logs=None):
+            self.train_loss.append(logs.get('loss'))
+            self.val_loss.append(logs.get('val_loss'))
+            self.train_acc.append(logs.get('acc'))
+            self.val_acc.append(logs.get('val_acc'))
+            epoch_time = time.time() - self.start_time
+            self.epoch_times.append(epoch_time)
+            print(f"Epoch {epoch + 1}: Train Loss: {logs.get('loss')} || Val Loss: {logs.get('val_loss')}")
+            print(f"Epoch {epoch + 1} completed in {epoch_time:.3f} seconds")
+
+            # Evaluate the model (you might need to adjust this to your specific evaluation function)
+            evaluator.evaluate(self.model, epoch + 1)
+        
+    custom_hist = CustomHistory()
+    model.fit(
+        train_features_list,
+        Y_train,
+        batch_size=batch_size,
+        epochs=epochs,
+        verbose=1,
+        shuffle=True,
+        validation_data=(dev_features_list, Y_dev),
+        callbacks=[custom_hist, checkpoint]
+    )
 
     '''# show the loss as the graph
     fig, loss_graph = plt.subplots()

@@ -14,3 +14,4 @@ class Configs:
     EPOCHS = 50
     BATCH_SIZE = 10
     OUTPUT_PATH = './../outputs/'
+    CHECKPOINT_PATH = "./../checkpoints/"
