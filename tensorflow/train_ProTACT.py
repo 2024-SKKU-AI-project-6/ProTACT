@@ -3,7 +3,7 @@ import time
 import argparse
 import random
 import numpy as np
-from models.ProTACT_bert_transformers import build_ProTACT
+from models.ProTACT import build_ProTACT
 import tensorflow as tf
 from configs.configs import Configs
 from utils.read_data_pr import read_pos_vocab, read_word_vocab, read_prompts_we, read_essays_prompts, read_prompts_pos
