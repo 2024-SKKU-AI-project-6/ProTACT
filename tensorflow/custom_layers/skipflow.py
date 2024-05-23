@@ -74,16 +74,13 @@ class TemporalMeanPooling(Layer):
 
 
 class SkipFlow(Layer):
-    def __init__(self, lstm_dim, k, maxlen, eta, delta, seed, lr, lr_decay, **kwargs):
+    def __init__(self, lstm_dim, k, maxlen, eta, delta, **kwargs):
         super(SkipFlow, self).__init__(**kwargs)
         self.lstm_dim = lstm_dim
         self.k = k
         self.maxlen = maxlen
         self.eta = eta
         self.delta = delta
-        self.seed = seed
-        self.lr = lr
-        self.lr_decay = lr_decay
         self.build_model()
         
         

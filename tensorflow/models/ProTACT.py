@@ -126,7 +126,7 @@ def build_ProTACT(pos_vocab_size, vocab_size, maxnum, maxlen, readability_featur
     readability_input = layers.Input((readability_feature_count,), name='readability_input')
 
     pos_MA_list = [MultiHeadAttention(100,num_heads)(pos_avg_zcnn) for _ in range(output_dim)]
-    pos_avg_MA_lstm_list = [SkipFlow(lstm_dim=lstm_units, k = 4, maxlen=maxlen, eta=13, delta=50, seed=1, lr=2e-4, lr_decay=2e-6)(pos_MA) for pos_MA in pos_MA_list] 
+    pos_avg_MA_lstm_list = [SkipFlow(lstm_dim=lstm_units, k = 4, maxlen=maxlen, eta=13, delta=50)(pos_MA) for pos_MA in pos_MA_list] 
 
     ### 2. Prompt Representation
     # word embedding
@@ -150,7 +150,7 @@ def build_ProTACT(pos_vocab_size, vocab_size, maxnum, maxlen, readability_featur
     prompt_avg_zcnn = layers.TimeDistributed(Attention(), name='prompt_avg_zcnn')(prompt_zcnn)
     
     prompt_MA_list = MultiHeadAttention(100, num_heads)(prompt_avg_zcnn)
-    prompt_MA_lstm_list = layers.LSTM(lstm_units, return_sequences=True)(prompt_MA_list) 
+    prompt_MA_lstm_list = SkipFlow(lstm_dim=lstm_units, k = 4, maxlen=maxlen, eta=13, delta=50)(prompt_MA_list) 
     prompt_avg_MA_lstm_list = Attention()(prompt_MA_lstm_list)
     
     query = prompt_avg_MA_lstm_list
