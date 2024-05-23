@@ -53,7 +53,7 @@ class LossFunctions(nn.Module):
         sim_loss = 0.0
         cnt = 0.0
         trait_num = 9
-        print("trait num: ", trait_num)
+        
 
         for i in range(1, trait_num):
             for j in range(i + 1, trait_num):

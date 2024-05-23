@@ -97,6 +97,8 @@ class ProTACT(nn.Module):
             self.flatten_list.append(nn.Flatten())
             self.final_dense_list.append(nn.Linear(2*(self.filters + linguistic_feature_count + readability_feature_count), 1))
     def forward(self, pos_input, prompt_word_input, prompt_pos_input, linguistic_input, readability_input):
+        device = pos_input.device
+
         ### 1. Essay Representation
 
         #     train_dataset = TensorDataset(
@@ -109,7 +111,7 @@ class ProTACT(nn.Module):
         # )
 
         # pos_input = [(None, 4850)]
-        pos_x = self.essay_pos_embedding(pos_input) # (pos_vocab_size, embedding_dim): (None, 4850, 50)
+        pos_x = self.essay_pos_embedding(pos_input.to(device)) # (pos_vocab_size, embedding_dim): (None, 4850, 50)
         pos_x_maskedout = self.essay_pos_x_maskedout(pos_x) # (None, pos_vocab_size, embedding_dim)
         pos_drop_x = self.essay_pos_dropout(pos_x_maskedout)  # (None, pos_vocab_size, embedding_dim)
         # print("pos_drop_x: ", pos_drop_x.shape)
@@ -122,7 +124,7 @@ class ProTACT(nn.Module):
         # TimeDistributed 실행
         pos_resh_W = pos_resh_W.permute(0,1,3,2) # (none, maxnum, embedding_dim, maxlen)
         #pos_zcnn = self.essay_pos_conv(pos_resh_W) # (none, maxnum, maxlen, kernel)
-        pos_zcnn = torch.tensor([])
+        pos_zcnn = torch.tensor([]).to(device)
         for i in range(self.max_num): # 97
             output_t = self.essay_pos_conv_list[i](pos_resh_W[:,i,:,:])  # (none, 46, 100)
             output_t  = output_t.unsqueeze(1) # (None, 1, 46,100)
@@ -136,7 +138,7 @@ class ProTACT(nn.Module):
         # pos_avg_zcnn = self.essay_pos_attention(pos_zcnn)
         
         # TimeDistributed Attention
-        pos_avg_zcnn = torch.tensor([])
+        pos_avg_zcnn = torch.tensor([]).to(device)
         for i in range(self.max_num): # (None,46,100)
             output_t = self.essay_pos_attention_list[i](pos_zcnn[:,i,:]) # (None,100)
             output_t = output_t.unsqueeze(1)
@@ -150,11 +152,11 @@ class ProTACT(nn.Module):
 
         ### 2. Prompt Representation 
         # word embedding
-        prompt = self.prompt_embedding(prompt_word_input)
+        prompt = self.prompt_embedding(prompt_word_input.to(device))
         prompt_maskedout = self.prompt_maskedout(prompt)
         
         # pos embedding
-        prompt_pos = self.prompt_pos_embedding(prompt_pos_input)
+        prompt_pos = self.prompt_pos_embedding(prompt_pos_input.to(device))
         prompt_pos_maskedout = self.prompt_pos_maskedout(prompt_pos)
         
         # word + pos embedding
@@ -163,7 +165,7 @@ class ProTACT(nn.Module):
         prompt_drop_x = self.prompt_dropout(prompt_emb).transpose(1, 2)
         prompt_resh_W = prompt_drop_x.reshape(-1, self.max_num, self.max_len, self.embedding_dim)
         prompt_resh_W = prompt_resh_W.permute(0,1,3,2) # (none, maxnum, embedding_dim, maxlen)
-        prompt_zcnn = torch.tensor([])
+        prompt_zcnn = torch.tensor([]).to(device)
         
         # TimeDistributed Conv1
         for i in range(self.max_num): # 97
@@ -174,7 +176,7 @@ class ProTACT(nn.Module):
         # print("prompt_zcnn", prompt_zcnn.shape) # (none, 97, 46, 100)
         
         #TimeDistributed Attention
-        prompt_avg_zcnn = torch.tensor([])
+        prompt_avg_zcnn = torch.tensor([]).to(device)
         for i in range(self.max_num): # (None,46,100)
             output_t = self.prompt_attention_list[i](prompt_zcnn[:,i,:]) # (None,100)
             output_t = output_t.unsqueeze(1)
@@ -203,7 +205,7 @@ class ProTACT(nn.Module):
         # print("readability_input: ",readability_input.shape)
         # print("es_pr_feat_concat: ",len(es_pr_feat_concat),", ",es_pr_feat_concat[0].shape)
         
-        pos_avg_hz_lstm = torch.tensor([])
+        pos_avg_hz_lstm = torch.tensor([]).to(device)
         for es_pr_feat in es_pr_feat_concat:
             es_pr_feat_unsqueeze = es_pr_feat.unsqueeze(1)
             pos_avg_hz_lstm = torch.cat((pos_avg_hz_lstm,es_pr_feat_unsqueeze),1)
