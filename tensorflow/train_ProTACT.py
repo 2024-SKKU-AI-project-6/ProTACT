@@ -40,6 +40,7 @@ def main():
     configs = Configs()
 
     checkpoint_path = configs.CHECKPOINT_PATH
+    model_name = configs.MODEL_NAME
     data_path = configs.DATA_PATH
     train_path = data_path + str(test_prompt_id) + '/train.pk'
     dev_path = data_path + str(test_prompt_id) + '/dev.pk'
@@ -51,6 +52,7 @@ def main():
     vocab_size = configs.VOCAB_SIZE
     epochs = configs.EPOCHS
     batch_size = configs.BATCH_SIZE
+    
     print("Numhead : ", num_heads, " | Features : ", features_path, " | Pos_emb : ", configs.EMBEDDING_DIM)
 
     read_configs = {
@@ -175,7 +177,7 @@ def main():
 
     evaluator.evaluate(model, -1, print_info=True)
 
-    checkpoint = tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_path+'model/bestmodel{epoch}.weights.h5',
+    checkpoint = tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_path+f"{model_name}/{model_name}_"+'{epoch}.weights.h5',
                                                     save_freq='epoch',
                                                     save_weights_only = True,
                                                     monitor='val_loss',
