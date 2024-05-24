@@ -12,7 +12,7 @@ class Configs:
     READABILITY_PATH = './../data/allreadability.pickle'
     PROMPT_PATH = './../data/prompt_info_pp.csv'
     EPOCHS = 50
-    BATCH_SIZE = 10
+    BATCH_SIZE = 32
     OUTPUT_PATH = './../outputs/'
     CHECKPOINT_PATH = "./../checkpoints/"
-    MODEL_NAME = "skipflow_1_2"
+    MODEL_NAME = "skipflow_3"

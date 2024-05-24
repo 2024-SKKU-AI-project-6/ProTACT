@@ -7,7 +7,7 @@ from models.ProTACT import build_ProTACT
 import tensorflow as tf
 from configs.configs import Configs
 from utils.read_data_pr import read_pos_vocab, read_word_vocab, read_prompts_we, read_essays_prompts, read_prompts_pos
-from utils.general_utils import get_scaled_down_scores, pad_hierarchical_text_sequences, get_attribute_masks, load_word_embedding_dict, build_embedd_table
+from utils.general_utils import get_scaled_down_scores, pad_hierarchical_text_sequences, get_attribute_masks, load_word_embedding_dict, build_embedd_table, separate_and_rescale_attributes_for_scoring
 from evaluators.multitask_evaluator_all_attributes import Evaluator as AllAttEvaluator
 from tensorflow import keras
 import matplotlib.pyplot as plt
@@ -23,13 +23,11 @@ def main():
                         help='name of model')
     parser.add_argument('--num_heads', type=int, default=2, help='set the number of heads in Multihead Attention')
     parser.add_argument('--features_path', type=str, default='data/hand_crafted_v3.csv')
-    parser.add_argument('--epochs', type=int, default=50)
     args = parser.parse_args()
     test_prompt_id = args.test_prompt_id
     seed = args.seed
     num_heads = args.num_heads
     features_path = args.features_path + str(test_prompt_id) + '.csv'
-    epochs = args.epochs
 
     np.random.seed(seed)
     tf.random.set_seed(seed)
@@ -52,7 +50,7 @@ def main():
     readability_path = configs.READABILITY_PATH
     prompt_path = configs.PROMPT_PATH
     vocab_size = configs.VOCAB_SIZE
-    # epochs = configs.EPOCHS
+    epochs = configs.EPOCHS
     batch_size = configs.BATCH_SIZE
     
     print("Numhead : ", num_heads, " | Features : ", features_path, " | Pos_emb : ", configs.EMBEDDING_DIM)
@@ -85,12 +83,6 @@ def main():
 
     max_sentlen = max(train_data['max_sentlen'], dev_data['max_sentlen'], test_data['max_sentlen'])
     max_sentnum = max(train_data['max_sentnum'], dev_data['max_sentnum'], test_data['max_sentnum'])
-    
-    for key in train_data.keys():
-        if key == "max_sentlen" or key == "max_sentnum":
-            continue
-        train_data[key] = train_data[key]
-    
     prompt_max_sentlen = prompt_data['max_sentlen']
     prompt_max_sentnum = prompt_data['max_sentnum']
 
@@ -99,67 +91,17 @@ def main():
     print('max prompt sent length: {}'.format(prompt_max_sentlen))
     print('max prompt sent num: {}'.format(prompt_max_sentnum))
 
-    train_data['y_scaled'] = get_scaled_down_scores(train_data['data_y'], train_data['prompt_ids'])
-    dev_data['y_scaled'] = get_scaled_down_scores(dev_data['data_y'], dev_data['prompt_ids'])
     test_data['y_scaled'] = get_scaled_down_scores(test_data['data_y'], test_data['prompt_ids'])
-
-    X_train_pos = pad_hierarchical_text_sequences(train_data['pos_x'], max_sentnum, max_sentlen)
-    X_dev_pos = pad_hierarchical_text_sequences(dev_data['pos_x'], max_sentnum, max_sentlen)
     X_test_pos = pad_hierarchical_text_sequences(test_data['pos_x'], max_sentnum, max_sentlen)
-
-    X_train_pos = X_train_pos.reshape((X_train_pos.shape[0], X_train_pos.shape[1] * X_train_pos.shape[2]))
-    X_dev_pos = X_dev_pos.reshape((X_dev_pos.shape[0], X_dev_pos.shape[1] * X_dev_pos.shape[2]))
     X_test_pos = X_test_pos.reshape((X_test_pos.shape[0], X_test_pos.shape[1] * X_test_pos.shape[2]))
-
-    X_train_prompt = pad_hierarchical_text_sequences(train_data['prompt_words'], max_sentnum, max_sentlen)
-    X_dev_prompt = pad_hierarchical_text_sequences(dev_data['prompt_words'], max_sentnum, max_sentlen)
     X_test_prompt = pad_hierarchical_text_sequences(test_data['prompt_words'], max_sentnum, max_sentlen)
-
-    X_train_prompt = X_train_prompt.reshape((X_train_prompt.shape[0], X_train_prompt.shape[1] * X_train_prompt.shape[2]))
-    X_dev_prompt = X_dev_prompt.reshape((X_dev_prompt.shape[0], X_dev_prompt.shape[1] * X_dev_prompt.shape[2]))
     X_test_prompt = X_test_prompt.reshape((X_test_prompt.shape[0], X_test_prompt.shape[1] * X_test_prompt.shape[2]))
-
-    X_train_prompt_pos = pad_hierarchical_text_sequences(train_data['prompt_pos'], max_sentnum, max_sentlen)
-    X_dev_prompt_pos = pad_hierarchical_text_sequences(dev_data['prompt_pos'], max_sentnum, max_sentlen)
     X_test_prompt_pos = pad_hierarchical_text_sequences(test_data['prompt_pos'], max_sentnum, max_sentlen)
-
-    X_train_prompt_pos = X_train_prompt_pos.reshape((X_train_prompt_pos.shape[0], X_train_prompt_pos.shape[1] * X_train_prompt_pos.shape[2]))
-    X_dev_prompt_pos = X_dev_prompt_pos.reshape((X_dev_prompt_pos.shape[0], X_dev_prompt_pos.shape[1] * X_dev_prompt_pos.shape[2]))
     X_test_prompt_pos = X_test_prompt_pos.reshape((X_test_prompt_pos.shape[0], X_test_prompt_pos.shape[1] * X_test_prompt_pos.shape[2]))
-
-    X_train_linguistic_features = np.array(train_data['features_x'])
-    X_dev_linguistic_features = np.array(dev_data['features_x'])
     X_test_linguistic_features = np.array(test_data['features_x'])
-
-    X_train_readability = np.array(train_data['readability_x'])
-    X_dev_readability = np.array(dev_data['readability_x'])
     X_test_readability = np.array(test_data['readability_x'])
-
-    Y_train = np.array(train_data['y_scaled'])
-    Y_dev = np.array(dev_data['y_scaled'])
     Y_test = np.array(test_data['y_scaled'])
-
-    X_train_attribute_rel = get_attribute_masks(Y_train)
-    X_dev_attribute_rel = get_attribute_masks(Y_dev)
     X_test_attribute_rel = get_attribute_masks(Y_test)
-
-    print('================================')
-    print('X_train_pos: ', X_train_pos.shape)
-    print('X_train_prompt_words: ', X_train_prompt.shape)
-    print('X_train_prompt_pos: ', X_train_prompt_pos.shape)
-    print('X_train_readability: ', X_train_readability.shape)
-    print('X_train_ling: ', X_train_linguistic_features.shape)
-    print('X_train_attribute_rel: ', X_train_attribute_rel.shape)
-    print('Y_train: ', Y_train.shape)
-
-    print('================================')
-    print('X_dev_pos: ', X_dev_pos.shape)
-    print('X_dev_prompt_words: ', X_dev_prompt.shape)
-    print('X_dev_prompt_pos: ', X_dev_prompt_pos.shape)
-    print('X_dev_readability: ', X_dev_readability.shape)
-    print('X_dev_ling: ', X_dev_linguistic_features.shape)
-    print('X_dev_attribute_rel: ', X_dev_attribute_rel.shape)
-    print('Y_dev: ', Y_dev.shape)
 
     print('================================')
     print('X_test_pos: ', X_test_pos.shape)
@@ -171,62 +113,18 @@ def main():
     print('Y_test: ', Y_test.shape)
     print('================================')
 
-    train_features_list = [X_train_pos, X_train_prompt, X_train_prompt_pos, X_train_linguistic_features, X_train_readability]
-    dev_features_list = [X_dev_pos, X_dev_prompt, X_dev_prompt_pos, X_dev_linguistic_features, X_dev_readability]
     test_features_list = [X_test_pos, X_test_prompt, X_test_prompt_pos, X_test_linguistic_features, X_test_readability]
 
     model = build_ProTACT(len(pos_vocab), len(word_vocab), max_sentnum, max_sentlen, 
-                      X_train_readability.shape[1],
-                      X_train_linguistic_features.shape[1],
-                      configs, Y_train.shape[1], num_heads, embed_table)
-
-    evaluator = AllAttEvaluator(test_prompt_id, dev_data['prompt_ids'], test_data['prompt_ids'], dev_features_list,
-                                test_features_list, Y_dev, Y_test, seed)
-
-    evaluator.evaluate(model, -1, print_info=True)
-
-    checkpoint = tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_path+f"{model_name}_{epochs}/{model_name}_{epochs}_"+'{epoch}.weights.h5',
-                                                    save_freq='epoch',
-                                                    save_weights_only = True,
-                                                    monitor='val_loss',
-                                                    mode='min'
-                                                    )
-
-    class CustomHistory(tf.keras.callbacks.Callback):
-        def on_train_begin(self, logs=None):
-            self.train_loss = []
-            self.val_loss = []
-            self.train_acc = []
-            self.val_acc = [] 
-            self.epoch_times = []
-
-        def on_epoch_begin(self, epoch, logs=None):
-            self.start_time = time.time()
-
-        def on_epoch_end(self, epoch, logs=None):
-            self.train_loss.append(logs.get('loss'))
-            self.val_loss.append(logs.get('val_loss'))
-            self.train_acc.append(logs.get('acc'))
-            self.val_acc.append(logs.get('val_acc'))
-            epoch_time = time.time() - self.start_time
-            self.epoch_times.append(epoch_time)
-            print(f"Epoch {epoch + 1}: Train Loss: {logs.get('loss')} || Val Loss: {logs.get('val_loss')}")
-            print(f"Epoch {epoch + 1} completed in {epoch_time:.3f} seconds")
-
-            # Evaluate the model (you might need to adjust this to your specific evaluation function)
-            evaluator.evaluate(self.model, epoch + 1)
+                      X_test_readability.shape[1],
+                      X_test_linguistic_features.shape[1],
+                      configs, Y_test.shape[1], num_heads, embed_table)
         
-    custom_hist = CustomHistory()
-    model.fit(
-        train_features_list,
-        Y_train,
-        batch_size=batch_size,
-        epochs=epochs,
-        verbose=1,
-        shuffle=True,
-        validation_data=(dev_features_list, Y_dev),
-        callbacks=[custom_hist, checkpoint]
-    )
+    for epoch in range(epochs):
+        model.load_weights(f"{checkpoint_path}{model_name}/{model_name}_{epoch}.weights.h5")
+        test_pred = model.predict(test_features_list, batch_size=32)
+        test_pred_dict = separate_and_rescale_attributes_for_scoring(test_pred, test_data['prompt_ids'])
+        print(test_pred_dict)
 
     '''# show the loss as the graph
     fig, loss_graph = plt.subplots()
