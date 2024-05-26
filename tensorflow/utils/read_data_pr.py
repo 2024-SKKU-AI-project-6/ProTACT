@@ -7,8 +7,8 @@ import numpy as np
 import pandas as pd
 from sklearn import preprocessing
 from utils.general_utils import get_score_vector_positions
-from tensorflow.keras.preprocessing.text import Tokenizer
-from tensorflow.keras.preprocessing.sequence import pad_sequences
+# from tensorflow.keras.preprocessing.text import Tokenize
+# from tensorflow.keras.preprocessing.sequence import pad_sequences
 
 
 url_replacer = '<url>'
@@ -271,6 +271,7 @@ def read_essay_sets_with_prompt_only_word_emb(essay_list, readability_features, 
         'max_sentnum': -1,
         'max_sentlen': -1
     }
+    
     for essay in essay_list:
         essay_id = int(essay['essay_id'])
         essay_set = int(essay['prompt_id']) # prompt id

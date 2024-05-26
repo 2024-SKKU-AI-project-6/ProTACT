@@ -1,6 +1,5 @@
 import numpy as np
 
-
 def get_score_vector_positions():
     return {
         'score': 0,
