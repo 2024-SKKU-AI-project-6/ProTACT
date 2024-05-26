@@ -90,29 +90,45 @@ def main():
     dev_data['y_scaled'] = get_scaled_down_scores(dev_data['data_y'], dev_data['prompt_ids'])
     test_data['y_scaled'] = get_scaled_down_scores(test_data['data_y'], test_data['prompt_ids'])
 
-    X_train_pos = pad_hierarchical_text_sequences(train_data['pos_x'], max_sentnum, max_sentlen)
-    X_dev_pos = pad_hierarchical_text_sequences(dev_data['pos_x'], max_sentnum, max_sentlen)
-    X_test_pos = pad_hierarchical_text_sequences(test_data['pos_x'], max_sentnum, max_sentlen)
-
-    X_train_pos = X_train_pos.reshape((X_train_pos.shape[0], X_train_pos.shape[1] * X_train_pos.shape[2]))
-    X_dev_pos = X_dev_pos.reshape((X_dev_pos.shape[0], X_dev_pos.shape[1] * X_dev_pos.shape[2]))
-    X_test_pos = X_test_pos.reshape((X_test_pos.shape[0], X_test_pos.shape[1] * X_test_pos.shape[2]))
-
+    X_train_essay = pad_hierarchical_text_sequences(train_data['content_sentences'], max_sentnum, max_sentlen)
+    X_dev_essay = pad_hierarchical_text_sequences(dev_data['content_sentences'], max_sentnum, max_sentlen)
+    X_test_essay = pad_hierarchical_text_sequences(test_data['content_sentences'], max_sentnum, max_sentlen)
+    
     X_train_prompt = pad_hierarchical_text_sequences(train_data['prompt_words'], max_sentnum, max_sentlen)
     X_dev_prompt = pad_hierarchical_text_sequences(dev_data['prompt_words'], max_sentnum, max_sentlen)
     X_test_prompt = pad_hierarchical_text_sequences(test_data['prompt_words'], max_sentnum, max_sentlen)
+    
+    # X_train_pos = X_train_pos.reshape((X_train_pos.shape[0], X_train_pos.shape[1] * X_train_pos.shape[2]))
+    # X_dev_pos = X_dev_pos.reshape((X_dev_pos.shape[0], X_dev_pos.shape[1] * X_dev_pos.shape[2]))
+    # X_test_pos = X_test_pos.reshape((X_test_pos.shape[0], X_test_pos.shape[1] * X_test_pos.shape[2]))
+    
+    # X_train_pos = pad_hierarchical_text_sequences(train_data['prompt_words'], max_sentnum, max_sentlen)
+    # X_dev_pos = pad_hierarchical_text_sequences(dev_data['prompt_words'], max_sentnum, max_sentlen)
+    # X_test_pos = pad_hierarchical_text_sequences(test_data['prompt_words'], max_sentnum, max_sentlen)
+    
+    # X_train_pos = pad_hierarchical_text_sequences(train_data['pos_x'], max_sentnum, max_sentlen)
+    # X_dev_pos = pad_hierarchical_text_sequences(dev_data['pos_x'], max_sentnum, max_sentlen)
+    # X_test_pos = pad_hierarchical_text_sequences(test_data['pos_x'], max_sentnum, max_sentlen)
 
-    X_train_prompt = X_train_prompt.reshape((X_train_prompt.shape[0], X_train_prompt.shape[1] * X_train_prompt.shape[2]))
-    X_dev_prompt = X_dev_prompt.reshape((X_dev_prompt.shape[0], X_dev_prompt.shape[1] * X_dev_prompt.shape[2]))
-    X_test_prompt = X_test_prompt.reshape((X_test_prompt.shape[0], X_test_prompt.shape[1] * X_test_prompt.shape[2]))
+    # X_train_pos = X_train_pos.reshape((X_train_pos.shape[0], X_train_pos.shape[1] * X_train_pos.shape[2]))
+    # X_dev_pos = X_dev_pos.reshape((X_dev_pos.shape[0], X_dev_pos.shape[1] * X_dev_pos.shape[2]))
+    # X_test_pos = X_test_pos.reshape((X_test_pos.shape[0], X_test_pos.shape[1] * X_test_pos.shape[2]))
 
-    X_train_prompt_pos = pad_hierarchical_text_sequences(train_data['prompt_pos'], max_sentnum, max_sentlen)
-    X_dev_prompt_pos = pad_hierarchical_text_sequences(dev_data['prompt_pos'], max_sentnum, max_sentlen)
-    X_test_prompt_pos = pad_hierarchical_text_sequences(test_data['prompt_pos'], max_sentnum, max_sentlen)
+    # X_train_prompt = pad_hierarchical_text_sequences(train_data['prompt_words'], max_sentnum, max_sentlen)
+    # X_dev_prompt = pad_hierarchical_text_sequences(dev_data['prompt_words'], max_sentnum, max_sentlen)
+    # X_test_prompt = pad_hierarchical_text_sequences(test_data['prompt_words'], max_sentnum, max_sentlen)
 
-    X_train_prompt_pos = X_train_prompt_pos.reshape((X_train_prompt_pos.shape[0], X_train_prompt_pos.shape[1] * X_train_prompt_pos.shape[2]))
-    X_dev_prompt_pos = X_dev_prompt_pos.reshape((X_dev_prompt_pos.shape[0], X_dev_prompt_pos.shape[1] * X_dev_prompt_pos.shape[2]))
-    X_test_prompt_pos = X_test_prompt_pos.reshape((X_test_prompt_pos.shape[0], X_test_prompt_pos.shape[1] * X_test_prompt_pos.shape[2]))
+    # X_train_prompt = X_train_prompt.reshape((X_train_prompt.shape[0], X_train_prompt.shape[1] * X_train_prompt.shape[2]))
+    # X_dev_prompt = X_dev_prompt.reshape((X_dev_prompt.shape[0], X_dev_prompt.shape[1] * X_dev_prompt.shape[2]))
+    # X_test_prompt = X_test_prompt.reshape((X_test_prompt.shape[0], X_test_prompt.shape[1] * X_test_prompt.shape[2]))
+
+    # X_train_prompt_pos = pad_hierarchical_text_sequences(train_data['prompt_pos'], max_sentnum, max_sentlen)
+    # X_dev_prompt_pos = pad_hierarchical_text_sequences(dev_data['prompt_pos'], max_sentnum, max_sentlen)
+    # X_test_prompt_pos = pad_hierarchical_text_sequences(test_data['prompt_pos'], max_sentnum, max_sentlen)
+
+    # X_train_prompt_pos = X_train_prompt_pos.reshape((X_train_prompt_pos.shape[0], X_train_prompt_pos.shape[1] * X_train_prompt_pos.shape[2]))
+    # X_dev_prompt_pos = X_dev_prompt_pos.reshape((X_dev_prompt_pos.shape[0], X_dev_prompt_pos.shape[1] * X_dev_prompt_pos.shape[2]))
+    # X_test_prompt_pos = X_test_prompt_pos.reshape((X_test_prompt_pos.shape[0], X_test_prompt_pos.shape[1] * X_test_prompt_pos.shape[2]))
 
     X_train_linguistic_features = np.array(train_data['features_x'])
     X_dev_linguistic_features = np.array(dev_data['features_x'])
@@ -131,36 +147,36 @@ def main():
     X_test_attribute_rel = get_attribute_masks(Y_test)
 
     print('================================')
-    print('X_train_pos: ', X_train_pos.shape)
+    print('X_train_pos: ', X_train_essay.shape)
     print('X_train_prompt_words: ', X_train_prompt.shape)
-    print('X_train_prompt_pos: ', X_train_prompt_pos.shape)
+    # print('X_train_prompt_pos: ', X_train_prompt_pos.shape)
     print('X_train_readability: ', X_train_readability.shape)
     print('X_train_ling: ', X_train_linguistic_features.shape)
     print('X_train_attribute_rel: ', X_train_attribute_rel.shape)
     print('Y_train: ', Y_train.shape)
 
     print('================================')
-    print('X_dev_pos: ', X_dev_pos.shape)
+    print('X_dev_pos: ', X_dev_essay.shape)
     print('X_dev_prompt_words: ', X_dev_prompt.shape)
-    print('X_dev_prompt_pos: ', X_dev_prompt_pos.shape)
+    # print('X_dev_prompt_pos: ', X_dev_prompt_pos.shape)
     print('X_dev_readability: ', X_dev_readability.shape)
     print('X_dev_ling: ', X_dev_linguistic_features.shape)
     print('X_dev_attribute_rel: ', X_dev_attribute_rel.shape)
     print('Y_dev: ', Y_dev.shape)
 
     print('================================')
-    print('X_test_pos: ', X_test_pos.shape)
+    print('X_test_pos: ', X_test_essay.shape)
     print('X_test_prompt_words: ', X_test_prompt.shape)
-    print('X_test_prompt_pos: ', X_test_prompt_pos.shape)
+    # print('X_test_prompt_pos: ', X_test_prompt_pos.shape)
     print('X_test_readability: ', X_test_readability.shape)
     print('X_test_ling: ', X_test_linguistic_features.shape)
     print('X_test_attribute_rel: ', X_test_attribute_rel.shape)
     print('Y_test: ', Y_test.shape)
     print('================================')
 
-    train_features_list = [X_train_pos, X_train_prompt, X_train_prompt_pos, X_train_linguistic_features, X_train_readability]
-    dev_features_list = [X_dev_pos, X_dev_prompt, X_dev_prompt_pos, X_dev_linguistic_features, X_dev_readability]
-    test_features_list = [X_test_pos, X_test_prompt, X_test_prompt_pos, X_test_linguistic_features, X_test_readability]
+    train_features_list = [X_train_essay, X_train_prompt, X_train_linguistic_features, X_train_readability]
+    dev_features_list = [X_dev_essay, X_dev_prompt, X_dev_linguistic_features, X_dev_readability]
+    test_features_list = [X_test_essay,X_test_prompt, X_test_linguistic_features, X_test_readability]
 
     model = build_ProTACT(len(pos_vocab), len(word_vocab), max_sentnum, max_sentlen, 
                       X_train_readability.shape[1],

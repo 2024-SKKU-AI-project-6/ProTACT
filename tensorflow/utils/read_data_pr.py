@@ -269,13 +269,15 @@ def read_essay_sets_with_prompt_only_word_emb(essay_list, readability_features, 
         'data_y': [],
         'prompt_ids': [],
         'max_sentnum': -1,
-        'max_sentlen': -1
+        'max_sentlen': -1,
+        'content_sentences': []
     }
     
     for essay in essay_list:
         essay_id = int(essay['essay_id'])
         essay_set = int(essay['prompt_id']) # prompt id
         content = essay['content_text']
+        sentence_content = sent_tokenize(content)
         scores_and_positions = get_score_vector_positions()
         y_vector = [-1] * len(scores_and_positions)
         for score in scores_and_positions.keys():
@@ -314,7 +316,7 @@ def read_essay_sets_with_prompt_only_word_emb(essay_list, readability_features, 
                         tag_indices.append(pos_tags['<unk>'])
                 sent_tag_indices.append(tag_indices)
                 tag_indices = []
-
+        out_data['content_sentences'].append(sentence_content)
         out_data['pos_x'].append(sent_tag_indices)
         out_data['prompt_ids'].append(essay_set)
         out_data['essay_ids'].append(essay_id)
@@ -327,6 +329,7 @@ def read_essay_sets_with_prompt_only_word_emb(essay_list, readability_features, 
     print(' readability_x size: {}'.format(len(out_data['readability_x'])))
     return out_data
 
+from nltk.tokenize import sent_tokenize
 
 def read_essays_prompts(read_configs, prompt_data, prompt_pos_data, pos_tags):
     readability_features = get_readability_features(read_configs['readability_path'])
@@ -341,6 +344,8 @@ def read_essays_prompts(read_configs, prompt_data, prompt_pos_data, pos_tags):
     train_data = read_essay_sets_with_prompt_only_word_emb(train_essays_list, readability_features, normalized_linguistic_features, prompt_data, prompt_pos_data, pos_tags)
     dev_data = read_essay_sets_with_prompt_only_word_emb(dev_essays_list, readability_features, normalized_linguistic_features, prompt_data, prompt_pos_data, pos_tags)
     test_data = read_essay_sets_with_prompt_only_word_emb(test_essays_list, readability_features, normalized_linguistic_features, prompt_data, prompt_pos_data, pos_tags)
+    
+    
     return train_data, dev_data, test_data
 
 
@@ -354,32 +359,32 @@ def read_prompts_word(prompt_list, vocab):
     for i in range(len(prompt_list)): 
         prompt_id = int(prompt_list['prompt_id'][i]) # prompt id
         content = prompt_list['prompt'][i]
-        
-        sent_tokens = text_tokenizer(content, replace_url_flag=True, tokenize_sent_flag=True)
-        sent_tokens = [[w.lower() for w in s] for s in sent_tokens]
+        sent_tokens = sent_tokenize(content)
+        # sent_tokens = text_tokenizer(content, replace_url_flag=True, tokenize_sent_flag=True)
+        # sent_tokens = [[w.lower() for w in s] for s in sent_tokens]
 
-        sent_indices = []
-        indices = []
+        # sent_indices = []
+        # indices = []
 
-        for sent in sent_tokens:
-            length = len(sent)
-            if length > 0:
-                if out_data['max_sentlen'] < length:
-                    out_data['max_sentlen'] = length
-                for word in sent:
-                    if is_number(word):
-                        indices.append(vocab['<num>'])
-                    elif word in vocab:
-                        indices.append(vocab[word])
-                    else:
-                        indices.append(vocab['<unk>'])
-                sent_indices.append(indices)
-                indices = []
+        # for sent in sent_tokens:
+        #     length = len(sent)
+        #     if length > 0:
+        #         if out_data['max_sentlen'] < length:
+        #             out_data['max_sentlen'] = length
+        #         for word in sent:
+        #             if is_number(word):
+        #                 indices.append(vocab['<num>'])
+        #             elif word in vocab:
+        #                 indices.append(vocab[word])
+        #             else:
+        #                 indices.append(vocab['<unk>'])
+        #         sent_indices.append(indices)
+        #         indices = []
 
-        out_data['prompt_words'].append(sent_indices)
+        out_data['prompt_words'].append(sent_tokens)
         out_data['prompt_ids'].append(prompt_id)
-        if out_data['max_sentnum'] < len(sent_indices):
-            out_data['max_sentnum'] = len(sent_indices)
+        if out_data['max_sentnum'] < len(sent_tokens):
+            out_data['max_sentnum'] = len(sent_tokens)
     print(' prompt_words size: {}'.format(len(out_data['prompt_words'])))
     return out_data
 

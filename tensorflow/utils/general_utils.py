@@ -163,23 +163,59 @@ def pad_flat_text_sequences(index_sequences, max_essay_len):
     return X
 
 
-def pad_hierarchical_text_sequences(index_sequences, max_sentnum, max_sentlen):
-    X = np.empty([len(index_sequences), max_sentnum, max_sentlen], dtype=np.int32)
+# def pad_hierarchical_text_sequences(index_sequences, max_sentnum, max_sentlen):
+#     X = np.empty([len(index_sequences), max_sentnum, max_sentlen], dtype=np.int32)
 
-    for i in range(len(index_sequences)):
-        sequence_ids = index_sequences[i]
-        num = len(sequence_ids)
+#     for i in range(len(index_sequences)):
+#         sequence_ids = index_sequences[i]
+#         num = len(sequence_ids)
 
-        for j in range(num):
-            word_ids = sequence_ids[j]
-            length = len(word_ids)
-            for k in range(length):
-                wid = word_ids[k]
-                X[i, j, k] = wid
-            X[i, j, length:] = 0
+#         for j in range(num):
+#             word_ids = sequence_ids[j]
+#             length = len(word_ids)
+#             for k in range(length):
+#                 wid = word_ids[k]
+#                 X[i, j, k] = wid
+#             X[i, j, length:] = 0
 
-        X[i, num:, :] = 0
-    return X
+#         X[i, num:, :] = 0
+#     return X
+
+import numpy as np
+
+# def pad_hierarchical_text_sequences(index_sequences, max_sentnum, max_sentlen):
+#     X = np.zeros((len(index_sequences), max_sentnum, max_sentlen), dtype=np.int32)
+
+#     for i, sequence_ids in enumerate(index_sequences):
+#         num_sentences = min(len(sequence_ids), max_sentnum)
+        
+#         for j in range(num_sentences):
+#             word_ids = sequence_ids[j]
+#             num_words = min(len(word_ids), max_sentlen)
+            
+#             X[i, j, :num_words] = word_ids[:num_words]
+            
+#     return X
+def pad_hierarchical_text_sequences(input_sequences, max_sentnum, max_len):
+    # Initialize the list for padded sequences
+    padded_sequences = []
+
+    for sentences in input_sequences:
+        # Ensure we do not process more sentences than max_sentnum
+        num_sentences = len(sentences)
+        
+        # If the number of sentences is less than max_sentnum, pad with ''
+        if num_sentences < max_sentnum:
+            sentences += [''] * (max_sentnum - num_sentences)
+        
+        # If the number of sentences is more than max_sentnum, truncate the list
+        elif num_sentences > max_sentnum:
+            sentences = sentences[:max_sentnum]
+
+        # Append the padded/truncated list to the result
+        padded_sequences.append(sentences)
+
+    return np.array(padded_sequences)
 
 
 def get_attribute_masks(score_matrix):

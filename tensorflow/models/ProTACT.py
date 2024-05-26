@@ -86,6 +86,8 @@ def total_loss(y_true, y_pred):
     ts_loss = trait_sim_loss(y_true, y_pred)
     return alpha * mse_loss + (1-alpha) * ts_loss
 
+import tensorflow_hub as hub
+
 def build_ProTACT(pos_vocab_size, vocab_size, maxnum, maxlen, readability_feature_count,
               linguistic_feature_count, configs, output_dim, num_heads, embedding_weights):
     embedding_dim = configs.EMBEDDING_DIM # 50
@@ -95,45 +97,52 @@ def build_ProTACT(pos_vocab_size, vocab_size, maxnum, maxlen, readability_featur
     lstm_units = configs.LSTM_UNITS # 100
     num_heads = num_heads # 2
     
+    
     ### 1. Essay Representation
-    pos_input = layers.Input(shape=(maxnum*maxlen,), dtype='int32', name='pos_input')
-    pos_x = layers.Embedding(output_dim=embedding_dim, input_dim=pos_vocab_size, input_length=maxnum*maxlen,
-                             weights=None, mask_zero=True, name='pos_x')(pos_input)
-    pos_x_maskedout = ZeroMaskedEntries(name='pos_x_maskedout')(pos_x)
-    pos_drop_x = layers.Dropout(dropout_prob, name='pos_drop_x')(pos_x_maskedout)
-    pos_resh_W = layers.Reshape((maxnum, maxlen, embedding_dim), name='pos_resh_W')(pos_drop_x) # (97, 50, 50)
-    pos_zcnn = layers.TimeDistributed(layers.Conv1D(cnn_filters, cnn_kernel_size, padding='valid'), name='pos_zcnn')(pos_resh_W)
-    pos_avg_zcnn = layers.TimeDistributed(Attention(), name='pos_avg_zcnn')(pos_zcnn)
+    essay_sentence_input = layers.Input(shape=(maxnum*maxlen,), dtype='int32', name='essay_word_input')
+    hub_sentence_input = hub.KerasLayer("https://tfhub.dev/tensorflow/bert_en_uncased_preprocess/3")(essay_sentence_input)
+    essay_sentence_embedding = hub.KerasLayer(f"https://tfhub.dev/tensorflow/small_bert/bert_en_uncased_L-4_H-128_A-2/2",
+                                trainable=True)(inputs=hub_sentence_input,training=True)
+    # pos_x = layers.Embedding(output_dim=embedding_dim, input_dim=pos_vocab_size, input_length=maxnum*maxlen,
+    #                          weights=None, mask_zero=True, name='pos_x')(pos_input)
+    # pos_x_maskedout = ZeroMaskedEntries(name='pos_x_maskedout')(pos_x)
+    # pos_drop_x = layers.Dropout(dropout_prob, name='pos_drop_x')(pos_x_maskedout)
+    # pos_resh_W = layers.Reshape((maxnum, maxlen, embedding_dim), name='pos_resh_W')(pos_drop_x) # (97, 50, 50)
+    # pos_zcnn = layers.TimeDistributed(layers.Conv1D(cnn_filters, cnn_kernel_size, padding='valid'), name='pos_zcnn')(pos_resh_W)
+    # pos_avg_zcnn = layers.TimeDistributed(Attention(), name='pos_avg_zcnn')(pos_zcnn)
 
     linguistic_input = layers.Input((linguistic_feature_count,), name='linguistic_input')
     readability_input = layers.Input((readability_feature_count,), name='readability_input')
 
-    pos_MA_list = [MultiHeadAttention(100,num_heads)(pos_avg_zcnn) for _ in range(output_dim)]
+    pos_MA_list = [MultiHeadAttention(100,num_heads)(essay_sentence_embedding['pooled_output']) for _ in range(output_dim)]
     pos_MA_lstm_list = [layers.LSTM(lstm_units, return_sequences=True)(pos_MA) for pos_MA in pos_MA_list] 
     pos_avg_MA_lstm_list = [Attention()(pos_hz_lstm) for pos_hz_lstm in pos_MA_lstm_list] 
 
     ### 2. Prompt Representation
     # word embedding
     prompt_word_input = layers.Input(shape=(maxnum*maxlen,), dtype='int32', name='prompt_word_input')
-    prompt = layers.Embedding(output_dim=embedding_dim, input_dim=vocab_size, input_length=maxnum*maxlen,
-                             weights=embedding_weights, mask_zero=True, name='prompt')(prompt_word_input)
-    prompt_maskedout = ZeroMaskedEntries(name='prompt_maskedout')(prompt)
+    prompt_hub_input = hub.KerasLayer("https://tfhub.dev/tensorflow/bert_en_uncased_preprocess/3")(prompt_word_input)
+    prompt_sentence_embedding = hub.KerasLayer(f"https://tfhub.dev/tensorflow/small_bert/bert_en_uncased_L-4_H-128_A-2/2",
+                                trainable=True)(inputs=prompt_hub_input,training=True)
+    # prompt = layers.Embedding(output_dim=embedding_dim, input_dim=vocab_size, input_length=maxnum*maxlen,
+    #                          weights=embedding_weights, mask_zero=True, name='prompt')(prompt_word_input)
+    # prompt_maskedout = ZeroMaskedEntries(name='prompt_maskedout')(prompt)
 
-    # pos embedding
-    prompt_pos_input = layers.Input(shape=(maxnum*maxlen,), dtype='int32', name='prompt_pos_input')
-    prompt_pos = layers.Embedding(output_dim=embedding_dim, input_dim=pos_vocab_size, input_length=maxnum*maxlen,
-                             weights=None, mask_zero=True, name='pos_prompt')(prompt_pos_input)
-    prompt_pos_maskedout = ZeroMaskedEntries(name='prompt_pos_maskedout')(prompt_pos) 
+    # # pos embedding
+    # prompt_pos_input = layers.Input(shape=(maxnum*maxlen,), dtype='int32', name='prompt_pos_input')
+    # prompt_pos = layers.Embedding(output_dim=embedding_dim, input_dim=pos_vocab_size, input_length=maxnum*maxlen,
+    #                          weights=None, mask_zero=True, name='pos_prompt')(prompt_pos_input)
+    # prompt_pos_maskedout = ZeroMaskedEntries(name='prompt_pos_maskedout')(prompt_pos) 
     
-    # add word + pos embedding
-    prompt_emb = tf.keras.layers.Add()([prompt_maskedout, prompt_pos_maskedout])
+    # # add word + pos embedding
+    # prompt_emb = tf.keras.layers.Add()([prompt_maskedout, prompt_pos_maskedout])
     
-    prompt_drop_x = layers.Dropout(dropout_prob, name='prompt_drop_x')(prompt_emb)
-    prompt_resh_W = layers.Reshape((maxnum, maxlen, embedding_dim), name='prompt_resh_W')(prompt_drop_x)
-    prompt_zcnn = layers.TimeDistributed(layers.Conv1D(cnn_filters, cnn_kernel_size, padding='valid'), name='prompt_zcnn')(prompt_resh_W)
-    prompt_avg_zcnn = layers.TimeDistributed(Attention(), name='prompt_avg_zcnn')(prompt_zcnn)
+    # prompt_drop_x = layers.Dropout(dropout_prob, name='prompt_drop_x')(prompt_emb)
+    # prompt_resh_W = layers.Reshape((maxnum, maxlen, embedding_dim), name='prompt_resh_W')(prompt_drop_x)
+    # prompt_zcnn = layers.TimeDistributed(layers.Conv1D(cnn_filters, cnn_kernel_size, padding='valid'), name='prompt_zcnn')(prompt_resh_W)
+    # prompt_avg_zcnn = layers.TimeDistributed(Attention(), name='prompt_avg_zcnn')(prompt_zcnn)
     
-    prompt_MA_list = MultiHeadAttention(100, num_heads)(prompt_avg_zcnn)
+    prompt_MA_list = MultiHeadAttention(100, num_heads)(prompt_sentence_embedding['pooled_output'])
     prompt_MA_lstm_list = layers.LSTM(lstm_units, return_sequences=True)(prompt_MA_list) 
     prompt_avg_MA_lstm_list = Attention()(prompt_MA_lstm_list)
     
