@@ -5,8 +5,25 @@ from tensorflow import keras
 import tensorflow.keras.backend as K
 from custom_layers.zeromasking import ZeroMaskedEntries
 from custom_layers.attention import Attention
+from custom_layers.skipflow import SkipFlow
 from custom_layers.multiheadattention_pe import MultiHeadAttention_PE
 from custom_layers.multiheadattention import MultiHeadAttention
+
+
+class MaskedSelection(layers.Layer):
+    def __init__(self, **kwargs):
+        super(MaskedSelection, self).__init__(**kwargs)
+
+    def call(self, inputs):
+        data, mask = inputs
+        masked_data = tf.boolean_mask(data, mask, axis=-2)
+        return masked_data
+
+    def compute_output_shape(self, input_shape):
+        # Assuming input_shape is a tuple (data_shape, mask_shape)
+        return input_shape[0]
+    
+    
 
 def correlation_coefficient(trait1, trait2):
     x = trait1
@@ -109,8 +126,7 @@ def build_ProTACT(pos_vocab_size, vocab_size, maxnum, maxlen, readability_featur
     readability_input = layers.Input((readability_feature_count,), name='readability_input')
 
     pos_MA_list = [MultiHeadAttention(100,num_heads)(pos_avg_zcnn) for _ in range(output_dim)]
-    pos_MA_lstm_list = [layers.LSTM(lstm_units, return_sequences=True)(pos_MA) for pos_MA in pos_MA_list] 
-    pos_avg_MA_lstm_list = [Attention()(pos_hz_lstm) for pos_hz_lstm in pos_MA_lstm_list] 
+    pos_avg_MA_lstm_list = [SkipFlow(lstm_dim=lstm_units, k = 4, maxlen=maxlen, eta=13, delta=50)(pos_MA) for pos_MA in pos_MA_list] 
 
     ### 2. Prompt Representation
     # word embedding
@@ -134,7 +150,7 @@ def build_ProTACT(pos_vocab_size, vocab_size, maxnum, maxlen, readability_featur
     prompt_avg_zcnn = layers.TimeDistributed(Attention(), name='prompt_avg_zcnn')(prompt_zcnn)
     
     prompt_MA_list = MultiHeadAttention(100, num_heads)(prompt_avg_zcnn)
-    prompt_MA_lstm_list = layers.LSTM(lstm_units, return_sequences=True)(prompt_MA_list) 
+    prompt_MA_lstm_list = SkipFlow(lstm_dim=lstm_units, k = 4, maxlen=maxlen, eta=13, delta=50)(prompt_MA_list) 
     prompt_avg_MA_lstm_list = Attention()(prompt_MA_lstm_list)
     
     query = prompt_avg_MA_lstm_list
@@ -144,17 +160,20 @@ def build_ProTACT(pos_vocab_size, vocab_size, maxnum, maxlen, readability_featur
     es_pr_avg_lstm_list = [Attention()(pos_hz_lstm) for pos_hz_lstm in es_pr_MA_lstm_list]
     es_pr_feat_concat = [layers.Concatenate()([rep, linguistic_input, readability_input]) # concatenate with non-prompt-specific features
                                  for rep in es_pr_avg_lstm_list]
-    pos_avg_hz_lstm = tf.concat([layers.Reshape((1, lstm_units + linguistic_feature_count + readability_feature_count))(rep)
-                                 for rep in es_pr_feat_concat], axis=-2)
+    reshaped_layers = [
+        layers.Reshape((1, lstm_units + linguistic_feature_count + readability_feature_count))(rep)
+        for rep in es_pr_feat_concat
+    ]
+    pos_avg_hz_lstm = layers.Concatenate(axis=-2)(reshaped_layers)
 
     final_preds = []
     for index, rep in enumerate(range(output_dim)):
         mask = np.array([True for _ in range(output_dim)])
         mask[index] = False
-        non_target_rep = tf.boolean_mask(pos_avg_hz_lstm, mask, axis=-2)
+        non_target_rep = MaskedSelection()([pos_avg_hz_lstm, mask])
         target_rep = pos_avg_hz_lstm[:, index:index+1]
         att_attention = layers.Attention()([target_rep, non_target_rep])
-        attention_concat = tf.concat([target_rep, att_attention], axis=-1)
+        attention_concat = layers.Concatenate(axis=-1)([target_rep, att_attention])
         attention_concat = layers.Flatten()(attention_concat)
         final_pred = layers.Dense(units=1, activation='sigmoid')(attention_concat)
         final_preds.append(final_pred)
