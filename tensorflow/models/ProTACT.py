@@ -105,10 +105,10 @@ def build_ProTACT(pos_vocab_size, vocab_size, maxnum, maxlen, readability_featur
     essay_preprocess_layer = hub.KerasLayer("https://tfhub.dev/tensorflow/bert_en_uncased_preprocess/3")
     # hub_sentence_input = essay_preprocess_layer(essay_sentence_input)
     essay_embedding_layer = hub.KerasLayer(f"https://tfhub.dev/tensorflow/small_bert/bert_en_uncased_L-4_H-128_A-2/2",
-                                trainable=True)
+                                trainable=False)
     def embed_sentences(sentence):
         preprocessed = essay_preprocess_layer(sentence)
-        return essay_embedding_layer(inputs=preprocessed,training=True)['pooled_output']
+        return essay_embedding_layer(inputs=preprocessed,training=False)['pooled_output']
         
     # essay_sentence_embedding = essay_embedding_layer(inputs=hub_sentence_input,training=True)
     essay_sentence_embedding = []
@@ -138,11 +138,11 @@ def build_ProTACT(pos_vocab_size, vocab_size, maxnum, maxlen, readability_featur
     prompt_sentence_input = layers.Input(shape=(maxnum), dtype=tf.string, name='prompt_sentence_input')
     prompt_preprocess_layer = hub.KerasLayer("https://tfhub.dev/tensorflow/bert_en_uncased_preprocess/3")
     prompt_embedding_layer = hub.KerasLayer(f"https://tfhub.dev/tensorflow/small_bert/bert_en_uncased_L-4_H-128_A-2/2",
-                                trainable=True)
+                                trainable=False)
 
     def embed_prompt_sentences(sentence):
         preprocessed = prompt_preprocess_layer(sentence)
-        return prompt_embedding_layer(inputs=preprocessed,training=True)['pooled_output']
+        return prompt_embedding_layer(inputs=preprocessed,training=False)['pooled_output']
         
     # essay_sentence_embedding = essay_embedding_layer(inputs=hub_sentence_input,training=True)
     prompt_sentence_embedding = []
