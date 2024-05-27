@@ -7,7 +7,9 @@ from custom_layers.zeromasking import ZeroMaskedEntries
 from custom_layers.attention import Attention
 from custom_layers.multiheadattention_pe import MultiHeadAttention_PE
 from custom_layers.multiheadattention import MultiHeadAttention
-
+import tensorflow_hub as hub
+import tensorflow_text as text
+ 
 def correlation_coefficient(trait1, trait2):
     x = trait1
     y = trait2
@@ -99,10 +101,22 @@ def build_ProTACT(pos_vocab_size, vocab_size, maxnum, maxlen, readability_featur
     
     
     ### 1. Essay Representation
-    essay_sentence_input = layers.Input(shape=(maxnum*maxlen,), dtype='int32', name='essay_word_input')
-    hub_sentence_input = hub.KerasLayer("https://tfhub.dev/tensorflow/bert_en_uncased_preprocess/3")(essay_sentence_input)
-    essay_sentence_embedding = hub.KerasLayer(f"https://tfhub.dev/tensorflow/small_bert/bert_en_uncased_L-4_H-128_A-2/2",
-                                trainable=True)(inputs=hub_sentence_input,training=True)
+    essay_sentence_input = layers.Input(shape=(maxnum), dtype=tf.string, name='essay_sentence_input')
+    essay_preprocess_layer = hub.KerasLayer("https://tfhub.dev/tensorflow/bert_en_uncased_preprocess/3")
+    # hub_sentence_input = essay_preprocess_layer(essay_sentence_input)
+    essay_embedding_layer = hub.KerasLayer(f"https://tfhub.dev/tensorflow/small_bert/bert_en_uncased_L-4_H-128_A-2/2",
+                                trainable=True)
+    def embed_sentences(sentence):
+        preprocessed = essay_preprocess_layer(sentence)
+        return essay_embedding_layer(inputs=preprocessed,training=True)['pooled_output']
+        
+    # essay_sentence_embedding = essay_embedding_layer(inputs=hub_sentence_input,training=True)
+    essay_sentence_embedding = []
+    for i in range(maxnum):
+      essay_sentence_embedding.append(embed_sentences(essay_sentence_input[:,i]))
+    essay_sentence_embedding = tf.convert_to_tensor(essay_sentence_embedding)
+
+
     # pos_x = layers.Embedding(output_dim=embedding_dim, input_dim=pos_vocab_size, input_length=maxnum*maxlen,
     #                          weights=None, mask_zero=True, name='pos_x')(pos_input)
     # pos_x_maskedout = ZeroMaskedEntries(name='pos_x_maskedout')(pos_x)
@@ -114,16 +128,29 @@ def build_ProTACT(pos_vocab_size, vocab_size, maxnum, maxlen, readability_featur
     linguistic_input = layers.Input((linguistic_feature_count,), name='linguistic_input')
     readability_input = layers.Input((readability_feature_count,), name='readability_input')
 
-    pos_MA_list = [MultiHeadAttention(100,num_heads)(essay_sentence_embedding['pooled_output']) for _ in range(output_dim)]
+    pos_MA_list = [MultiHeadAttention(100,num_heads)(essay_sentence_embedding) for _ in range(output_dim)]
     pos_MA_lstm_list = [layers.LSTM(lstm_units, return_sequences=True)(pos_MA) for pos_MA in pos_MA_list] 
     pos_avg_MA_lstm_list = [Attention()(pos_hz_lstm) for pos_hz_lstm in pos_MA_lstm_list] 
 
     ### 2. Prompt Representation
     # word embedding
-    prompt_word_input = layers.Input(shape=(maxnum*maxlen,), dtype='int32', name='prompt_word_input')
-    prompt_hub_input = hub.KerasLayer("https://tfhub.dev/tensorflow/bert_en_uncased_preprocess/3")(prompt_word_input)
-    prompt_sentence_embedding = hub.KerasLayer(f"https://tfhub.dev/tensorflow/small_bert/bert_en_uncased_L-4_H-128_A-2/2",
-                                trainable=True)(inputs=prompt_hub_input,training=True)
+    
+    prompt_sentence_input = layers.Input(shape=(maxnum), dtype=tf.string, name='prompt_sentence_input')
+    prompt_preprocess_layer = hub.KerasLayer("https://tfhub.dev/tensorflow/bert_en_uncased_preprocess/3")
+    prompt_embedding_layer = hub.KerasLayer(f"https://tfhub.dev/tensorflow/small_bert/bert_en_uncased_L-4_H-128_A-2/2",
+                                trainable=True)
+
+    def embed_prompt_sentences(sentence):
+        preprocessed = prompt_preprocess_layer(sentence)
+        return prompt_embedding_layer(inputs=preprocessed,training=True)['pooled_output']
+        
+    # essay_sentence_embedding = essay_embedding_layer(inputs=hub_sentence_input,training=True)
+    prompt_sentence_embedding = []
+    for i in range(maxnum):
+      prompt_sentence_embedding.append(embed_prompt_sentences(prompt_sentence_input[:,i]))
+    prompt_sentence_embedding = tf.convert_to_tensor(prompt_sentence_embedding)
+
+    # prompt_sentence_embedding = prompt_embedding_layer(inputs=prompt_hub_input,training=True)
     # prompt = layers.Embedding(output_dim=embedding_dim, input_dim=vocab_size, input_length=maxnum*maxlen,
     #                          weights=embedding_weights, mask_zero=True, name='prompt')(prompt_word_input)
     # prompt_maskedout = ZeroMaskedEntries(name='prompt_maskedout')(prompt)
@@ -142,7 +169,7 @@ def build_ProTACT(pos_vocab_size, vocab_size, maxnum, maxlen, readability_featur
     # prompt_zcnn = layers.TimeDistributed(layers.Conv1D(cnn_filters, cnn_kernel_size, padding='valid'), name='prompt_zcnn')(prompt_resh_W)
     # prompt_avg_zcnn = layers.TimeDistributed(Attention(), name='prompt_avg_zcnn')(prompt_zcnn)
     
-    prompt_MA_list = MultiHeadAttention(100, num_heads)(prompt_sentence_embedding['pooled_output'])
+    prompt_MA_list = MultiHeadAttention(100, num_heads)(prompt_sentence_embedding)
     prompt_MA_lstm_list = layers.LSTM(lstm_units, return_sequences=True)(prompt_MA_list) 
     prompt_avg_MA_lstm_list = Attention()(prompt_MA_lstm_list)
     
@@ -172,7 +199,7 @@ def build_ProTACT(pos_vocab_size, vocab_size, maxnum, maxlen, readability_featur
 
     y = layers.Concatenate()([pred for pred in final_preds])
 
-    model = keras.Model(inputs=[pos_input, prompt_word_input, prompt_pos_input, linguistic_input, readability_input], outputs=y)
+    model = keras.Model(inputs=[essay_sentence_input, prompt_sentence_input, linguistic_input, readability_input], outputs=y)
     model.summary()
     model.compile(loss=total_loss, optimizer='rmsprop')
 
