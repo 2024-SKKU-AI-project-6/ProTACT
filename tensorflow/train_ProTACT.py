@@ -48,7 +48,8 @@ def main():
     vocab_size = configs.VOCAB_SIZE
     epochs = configs.EPOCHS
     batch_size = configs.BATCH_SIZE
-    print("Numhead : ", num_heads, " | Features : ", features_path, " | Pos_emb : ", configs.EMBEDDING_DIM)
+    lstm_model = configs.lstm_model
+    print("Numhead : ", num_heads, " | Features : ", features_path, " | Pos_emb : ", configs.EMBEDDING_DIM, " | Mode : ", mode)
 
     read_configs = {
         'train_path': train_path,
@@ -75,6 +76,25 @@ def main():
         embed_table = [embedd_matrix]
     else:
         embed_table = None
+        
+    def sample_data_dict(data_dict, sample_ratio=0.1):
+        keys = list(data_dict.keys())
+        # 먼저 첫 번째 키에 대한 샘플 크기를 계산합니다.
+        sample_size = int(len(data_dict[keys[0]]) * sample_ratio)
+        indices = np.random.choice(len(data_dict[keys[0]]), sample_size, replace=False)
+
+        sampled_dict = {}
+        for key in keys:
+            if isinstance(data_dict[key], list) or isinstance(data_dict[key], np.ndarray):
+                sampled_dict[key] = [data_dict[key][i] for i in indices]
+            else:
+                sampled_dict[key] = data_dict[key]
+
+        return sampled_dict
+
+    train_data = sample_data_dict(train_data)
+    #dev_data = sample_data_dict(dev_data)
+    #test_data = sample_data_dict(test_data)
 
     max_sentlen = max(train_data['max_sentlen'], dev_data['max_sentlen'], test_data['max_sentlen'])
     max_sentnum = max(train_data['max_sentnum'], dev_data['max_sentnum'], test_data['max_sentnum'])
@@ -215,7 +235,7 @@ def main():
 
     checkpoint = tf.keras.callbacks.ModelCheckpoint(
         # epoch 마다 파일명 다르게 저장
-        filepath='Checkpoint/bestmodel{epoch}.h5',
+        filepath='Checkpoint/{lstm_model}/{test_prompt_id}/bestmodel{epoch}.h5',
 
         # epoch 마다 weights 들만 저장
         save_freq='epoch',
