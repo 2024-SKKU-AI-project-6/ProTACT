@@ -240,7 +240,7 @@ def main():
 
     checkpoint = tf.keras.callbacks.ModelCheckpoint(
         # epoch 마다 파일명 다르게 저장
-        filepath='Checkpoint/{lstm_model}/{test_prompt_id}/bestmodel{epoch}.h5',
+        filepath='Checkpoint/{lstm_model}/{test_prompt_id}/bestmodel_epoch_{epoch}.h5',
 
         # epoch 마다 weights 들만 저장
         save_freq='epoch',
