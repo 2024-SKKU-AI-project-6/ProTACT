@@ -94,8 +94,8 @@ def build_ProTACT(pos_vocab_size, vocab_size, maxnum, maxlen, readability_featur
     cnn_kernel_size = configs.CNN_KERNEL_SIZE # 5
     lstm_units = configs.LSTM_UNITS # 100
     num_heads = num_heads # 2
-    if configs.lstm_model:
-        lstm_model = configs.lstm_model # 'bi-gru'
+    if configs.LSTM_MODEL:
+        lstm_model = configs.LSTM_MODEL # 'bi-gru'
     else:
         lstm_model = 'lstm'
     
@@ -115,6 +115,8 @@ def build_ProTACT(pos_vocab_size, vocab_size, maxnum, maxlen, readability_featur
     pos_MA_list = [MultiHeadAttention(100,num_heads)(pos_avg_zcnn) for _ in range(output_dim)]
     if lstm_model == 'bi-gru':
         pos_MA_lstm_list = [layers.Bidirectional(layers.GRU(lstm_units, return_sequences=True))(pos_MA) for pos_MA in pos_MA_list]
+    elif lstm_model == 'gru':
+        pos_MA_lstm_list = [layers.GRU(lstm_units, return_sequences=True)(pos_MA) for pos_MA in pos_MA_list]
     else:
         pos_MA_lstm_list = [layers.LSTM(lstm_units, return_sequences=True)(pos_MA) for pos_MA in pos_MA_list]
     pos_avg_MA_lstm_list = [Attention()(pos_hz_lstm) for pos_hz_lstm in pos_MA_lstm_list] 
@@ -143,6 +145,8 @@ def build_ProTACT(pos_vocab_size, vocab_size, maxnum, maxlen, readability_featur
     prompt_MA_list = MultiHeadAttention(100, num_heads)(prompt_avg_zcnn)
     if lstm_model == 'bi-gru':
         prompt_MA_lstm_list = layers.Bidirectional(layers.GRU(lstm_units, return_sequences=True))(prompt_MA_list)
+    elif lstm_model == 'gru':
+        prompt_MA_lstm_list = layers.GRU(lstm_units, return_sequences=True)(prompt_MA_list)
     else:
         prompt_MA_lstm_list = layers.LSTM(lstm_units, return_sequences=True)(prompt_MA_list)
     prompt_avg_MA_lstm_list = Attention()(prompt_MA_lstm_list)
@@ -161,6 +165,9 @@ def build_ProTACT(pos_vocab_size, vocab_size, maxnum, maxlen, readability_featur
                                  for rep in es_pr_avg_lstm_list]
     if lstm_model == 'bi-gru':
         pos_avg_hz_lstm = tf.concat([layers.Reshape((1, lstm_units * 2 + linguistic_feature_count + readability_feature_count))(rep) # bidirectional GRU
+                             for rep in es_pr_feat_concat], axis=-2)
+    elif lstm_model == 'gru':
+        pos_avg_hz_lstm = tf.concat([layers.Reshape((1, lstm_units + linguistic_feature_count + readability_feature_count))(rep) # GRU
                              for rep in es_pr_feat_concat], axis=-2)
     else:
         pos_avg_hz_lstm = tf.concat([layers.Reshape((1, lstm_units + linguistic_feature_count + readability_feature_count))(rep)

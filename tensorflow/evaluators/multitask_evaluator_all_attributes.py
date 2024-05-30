@@ -85,6 +85,12 @@ class Evaluator():
             print("Save best model to ", file_path)'''
         if print_info:
             self.print_info()
+        return {
+            "dev_kappa_mean": self.dev_kappa_mean,
+            "test_kappa_mean": self.test_kappa_mean,
+            "kappa_dev": self.kappa_dev,
+            "kappa_test": self.kappa_test
+        }
 
     def print_info(self):
         print('CURRENT EPOCH: {}'.format(self.current_epoch))

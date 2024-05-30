@@ -11,8 +11,9 @@ class Configs:
     FEATURES_PATH = './../data/hand_crafted_v3.csv'
     READABILITY_PATH = './../data/allreadability.pickle'
     PROMPT_PATH = './../data/prompt_info_pp.csv'
-    EPOCHS = 100
+    EPOCHS = 50
     BATCH_SIZE = 10
     OUTPUT_PATH = './../outputs/'
-    lstm_model = 'bi-gru'
+    LSTM_MODEL = 'gru'
+    LOAD = False
     

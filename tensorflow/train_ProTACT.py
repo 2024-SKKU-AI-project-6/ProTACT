@@ -11,6 +11,8 @@ from utils.general_utils import get_scaled_down_scores, pad_hierarchical_text_se
 from evaluators.multitask_evaluator_all_attributes import Evaluator as AllAttEvaluator
 from tensorflow import keras
 import matplotlib.pyplot as plt
+import pickle
+import glob
 
 def main():
     parser = argparse.ArgumentParser(description="ProTACT model")
@@ -48,8 +50,11 @@ def main():
     vocab_size = configs.VOCAB_SIZE
     epochs = configs.EPOCHS
     batch_size = configs.BATCH_SIZE
-    lstm_model = configs.lstm_model
+    lstm_model = configs.LSTM_MODEL
+    load = configs.LOAD
+    
     print("Numhead : ", num_heads, " | Features : ", features_path, " | Pos_emb : ", configs.EMBEDDING_DIM, " | Mode : ", mode)
+    print("model : ", lstm_model)
 
     read_configs = {
         'train_path': train_path,
@@ -92,7 +97,7 @@ def main():
 
         return sampled_dict
 
-    train_data = sample_data_dict(train_data)
+    #train_data = sample_data_dict(train_data)
     #dev_data = sample_data_dict(dev_data)
     #test_data = sample_data_dict(test_data)
 
@@ -190,7 +195,7 @@ def main():
     evaluator = AllAttEvaluator(test_prompt_id, dev_data['prompt_ids'], test_data['prompt_ids'], dev_features_list,
                                 test_features_list, Y_dev, Y_test, seed)
 
-    evaluator.evaluate(model, -1, print_info=True)
+    evalutate_results = evaluator.evaluate(model, -1, print_info=True)
 
     # 구버전 Checkpoint 안할때
     # class CustomHistory(keras.callbacks.Callback):
@@ -245,13 +250,52 @@ def main():
         monitor='val_loss',
         mode='min'
     )
+    # class CustomHistory(tf.keras.callbacks.Callback):
+    #     def on_train_begin(self, logs=None):
+    #         self.train_loss = []
+    #         self.val_loss = []
+    #         self.train_acc = []
+    #         self.val_acc = [] 
+    #         self.epoch_times = []
+
+    #     def on_epoch_begin(self, epoch, logs=None):
+    #         self.start_time = time.time()
+
+    #     def on_epoch_end(self, epoch, logs=None):
+    #         self.train_loss.append(logs.get('loss'))
+    #         self.val_loss.append(logs.get('val_loss'))
+    #         self.train_acc.append(logs.get('acc'))
+    #         self.val_acc.append(logs.get('val_acc'))
+    #         epoch_time = time.time() - self.start_time
+    #         self.epoch_times.append(epoch_time)
+    #         print(f"Epoch {epoch + 1}: Train Loss: {logs.get('loss')} || Val Loss: {logs.get('val_loss')}")
+    #         print(f"Epoch {epoch + 1} completed in {epoch_time:.3f} seconds")
+
+    #         # Evaluate the model (you might need to adjust this to your specific evaluation function)
+    #         evaluator.evaluate(self.model, epoch + 1)
+    
     class CustomHistory(tf.keras.callbacks.Callback):
-        def on_train_begin(self, logs=None):
+        def __init__(self, test_prompt_id, seed, save_graphs_freq=10, save_dir='training_data'):
+            super(CustomHistory, self).__init__()
+            self.test_prompt_id = test_prompt_id
+            self.seed = seed
+            self.save_graphs_freq = save_graphs_freq
+            self.save_dir = save_dir
             self.train_loss = []
             self.val_loss = []
             self.train_acc = []
-            self.val_acc = [] 
+            self.val_acc = []
             self.epoch_times = []
+            self.qwk_dev = []
+            self.qwk_test = []
+            self.kappa_dev_history = []
+            self.kappa_test_history = []
+
+            # Create directory if it does not exist
+            os.makedirs(self.save_dir, exist_ok=True)
+
+        def on_train_begin(self, logs=None):
+            pass
 
         def on_epoch_begin(self, epoch, logs=None):
             self.start_time = time.time()
@@ -266,20 +310,91 @@ def main():
             print(f"Epoch {epoch + 1}: Train Loss: {logs.get('loss')} || Val Loss: {logs.get('val_loss')}")
             print(f"Epoch {epoch + 1} completed in {epoch_time:.3f} seconds")
 
-            # Evaluate the model (you might need to adjust this to your specific evaluation function)
-            evaluator.evaluate(self.model, epoch + 1)
+            # Evaluate the model and get QWK values
+            evaluation_results = evaluator.evaluate(self.model, epoch + 1)
+            self.qwk_dev.append(evaluation_results["dev_kappa_mean"])
+            self.qwk_test.append(evaluation_results["test_kappa_mean"])
+            self.kappa_dev_history.append(evaluation_results["kappa_dev"])
+            self.kappa_test_history.append(evaluation_results["kappa_test"])
 
-    custom_hist = CustomHistory()
+            # Save data to .pkl file
+            self.save_to_pickle(epoch + 1)
+
+            # Save loss graph
+            if (epoch + 1) % self.save_graphs_freq == 0 or (epoch + 1) == 100:
+                self.save_loss_graph(epoch + 1)
+
+        def save_to_pickle(self, epoch):
+            data = {
+                'train_loss': self.train_loss,
+                'val_loss': self.val_loss,
+                'train_acc': self.train_acc,
+                'val_acc': self.val_acc,
+                'epoch_times': self.epoch_times,
+                'qwk_dev': self.qwk_dev,
+                'qwk_test': self.qwk_test,
+                'kappa_dev_history': self.kappa_dev_history,
+                'kappa_test_history': self.kappa_test_history
+            }
+            filepath = os.path.join(self.save_dir, f'training_data_epoch_{epoch}.pkl')
+            with open(filepath, 'wb') as f:
+                pickle.dump(data, f)
+
+        def save_loss_graph(self, epoch):
+            # Plot and save the loss graph
+            fig, loss_graph = plt.subplots()
+            loss_graph.plot(self.train_loss, 'y', label='train loss')
+            loss_graph.plot(self.val_loss, 'r', label='val loss')
+            loss_graph.set_xlabel('epoch')
+            loss_graph.set_ylabel('loss')
+            loss_graph.set_title('Train and Validation Loss')
+            loss_graph.legend()
+            filepath = os.path.join(self.save_dir, f'test_prompt_{self.test_prompt_id}_seed_{self.seed}_loss_epoch_{epoch}.png')
+            plt.savefig(filepath)
+            plt.close()
+
+    custom_hist = CustomHistory(test_prompt_id=test_prompt_id, seed=seed, save_dir='training_data')
     
+    # Checkpoint directory
+    checkpoint_dir = 'Checkpoint'
+    checkpoint_files = glob.glob(os.path.join(checkpoint_dir, 'bestmodel_epoch_*.h5'))
+
+    # Sort the checkpoint files by epoch number
+    checkpoint_files.sort(key=lambda x: int(x.split('_')[-1].split('.')[0]))
+
+    # Get the latest checkpoint file
+    latest_checkpoint = checkpoint_files[-1] if checkpoint_files else None
+    print(f'Latest checkpoint: {latest_checkpoint}')
+    
+    # model.fit(
+    #     train_features_list,
+    #     Y_train,
+    #     batch_size=batch_size,
+    #     epochs=epochs,
+    #     verbose=1,
+    #     shuffle=True,
+    #     validation_data=(dev_features_list, Y_dev),
+    #     callbacks=[custom_hist, checkpoint]
+    # )
+    # Check if there is a latest checkpoint
+    if latest_checkpoint and load:
+        print(f'Loading weights from {latest_checkpoint}')
+        model.load_weights(latest_checkpoint)
+
+    # 모델 학습 코드
+    initial_epoch = int(latest_checkpoint.split('_')[-1].split('.')[0]) if latest_checkpoint else 0
+    if not load:
+        initial_epoch = 0
     model.fit(
         train_features_list,
         Y_train,
         batch_size=batch_size,
-        epochs=epochs,
+        epochs=50, # 적절한 에포크 수로 설정
         verbose=1,
         shuffle=True,
         validation_data=(dev_features_list, Y_dev),
-        callbacks=[custom_hist, checkpoint]
+        callbacks=[custom_hist, checkpoint],
+        initial_epoch=initial_epoch  # 학습을 재개할 에포크
     )
 
 if __name__ == '__main__':
