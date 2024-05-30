@@ -24,7 +24,7 @@ class Attention(Layer):
         self.built = True
 
     def call(self, x, mask=None):
-        print("Attention x:", x.shape)
+        #print("Attention x:", x.shape)
         y = K.dot(x, self.att_W)
         if not self.activation:
             weights = tf.tensordot(self.att_v, y, axes=[[0], [2]])

@@ -377,14 +377,13 @@ def main():
     #     callbacks=[custom_hist, checkpoint]
     # )
     # Check if there is a latest checkpoint
+    initial_epoch = 0
     if latest_checkpoint and load:
         print(f'Loading weights from {latest_checkpoint}')
         model.load_weights(latest_checkpoint)
+        initial_epoch = int(latest_checkpoint.split('_')[-1].split('.')[0]) if latest_checkpoint else 0
 
-    # 모델 학습 코드
-    initial_epoch = int(latest_checkpoint.split('_')[-1].split('.')[0]) if latest_checkpoint else 0
-    if not load:
-        initial_epoch = 0
+    
     model.fit(
         train_features_list,
         Y_train,
