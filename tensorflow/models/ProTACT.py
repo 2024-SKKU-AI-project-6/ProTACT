@@ -138,7 +138,7 @@ def build_ProTACT(pos_vocab_size, vocab_size, maxnum, maxlen, readability_featur
     pos_ffn_output = layers.TimeDistributed(layers.Dense(embedding_dim),name='pos_dense_2')(pos_ffn_output)
     pos_ffn_output = layers.TimeDistributed(layers.Dropout(dropout_prob))(pos_ffn_output)
     pos_ffn_output = layers.TimeDistributed(layers.LayerNormalization(epsilon=1e-6))(pos_attention_output + pos_ffn_output)
-    pos_transformer_embedding = layers.TimeDistributed(layers.Lambda(lambda x: tf.reduce_mean(x, axis=2)),name='pos_transformer_embedding')(pos_ffn_output)
+    pos_transformer_embedding = layers.TimeDistributed(layers.Lambda(lambda x: tf.reduce_mean(x, axis=1)),name='pos_transformer_embedding')(pos_ffn_output)
     ################# /transforemr mean pooling #####################
 
     linguistic_input = layers.Input((linguistic_feature_count,), name='linguistic_input')
@@ -184,7 +184,7 @@ def build_ProTACT(pos_vocab_size, vocab_size, maxnum, maxlen, readability_featur
     prompt_ffn_output = layers.TimeDistributed(layers.Dense(embedding_dim),name='prompt_dense_2')(prompt_ffn_output)
     prompt_ffn_output = layers.TimeDistributed(layers.Dropout(dropout_prob))(prompt_ffn_output)
     prompt_ffn_output = layers.TimeDistributed(layers.LayerNormalization(epsilon=1e-6))(prompt_attention_output + prompt_ffn_output)
-    prompt_transformer_embedding = layers.TimeDistributed(layers.Lambda(lambda x: tf.reduce_mean(x, axis=2)),name='prompt_transformer_embedding')(prompt_ffn_output)
+    prompt_transformer_embedding = layers.TimeDistributed(layers.Lambda(lambda x: tf.reduce_mean(x, axis=1)),name='prompt_transformer_embedding')(prompt_ffn_output)
     ################# /transforemr mean pooling #####################
     
 
