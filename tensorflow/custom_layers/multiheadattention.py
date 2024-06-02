@@ -2,7 +2,7 @@ import tensorflow as tf
 import tensorflow.keras.backend as K
 
 class MultiHeadAttention(tf.keras.layers.Layer):
-    def __init__(self, embedding_dim, num_heads=8):
+    def __init__(self, embedding_dim, num_heads=8, dropout_rate=0):
         super(MultiHeadAttention, self).__init__()
         self.embedding_dim = embedding_dim # d_model
         self.num_heads = num_heads
@@ -13,6 +13,7 @@ class MultiHeadAttention(tf.keras.layers.Layer):
         self.query_dense = tf.keras.layers.Dense(embedding_dim)
         self.key_dense = tf.keras.layers.Dense(embedding_dim)
         self.value_dense = tf.keras.layers.Dense(embedding_dim)
+        self.dropout = tf.keras.layers.Dropout(dropout_rate)
         self.dense = tf.keras.layers.Dense(embedding_dim)
 
     def scaled_dot_product_attention(self, query, key, value):
@@ -20,6 +21,7 @@ class MultiHeadAttention(tf.keras.layers.Layer):
         depth = tf.cast(tf.shape(key)[-1], tf.float32)
         logits = matmul_qk / tf.math.sqrt(depth)
         attention_weights = tf.nn.softmax(logits, axis=-1)
+        attention_weights = self.dropout(attention_weights)
         output = tf.matmul(attention_weights, value)
         return output, attention_weights
 
@@ -49,4 +51,7 @@ class MultiHeadAttention(tf.keras.layers.Layer):
         concat_attention = tf.reshape(scaled_attention, (batch_size, -1, self.embedding_dim))
         outputs = self.dense(concat_attention)
         return outputs
+    
+    def compute_output_shape(self, input_shape):
+        return input_shape
 
