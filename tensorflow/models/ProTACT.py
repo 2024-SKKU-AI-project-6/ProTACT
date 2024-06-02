@@ -123,7 +123,7 @@ def build_ProTACT(pos_vocab_size, vocab_size, maxnum, maxlen, readability_featur
     # pos_zcnn = layers.TimeDistributed(layers.Conv1D(cnn_filters, cnn_kernel_size, padding='valid'), name='pos_zcnn')(pos_resh_W)
     # pos_avg_zcnn = layers.TimeDistributed(Attention(), name='pos_avg_zcnn')(pos_zcnn)
     
-    ################# transforemr mean pooling/ #####################
+    ################# Essay transforemr mean pooling/ #####################
     # Multi-head attention
     pos_multi_head_attention_layer = MultiHeadAttention(
         num_heads=2,
@@ -138,16 +138,36 @@ def build_ProTACT(pos_vocab_size, vocab_size, maxnum, maxlen, readability_featur
     pos_ffn_output = layers.TimeDistributed(layers.Dense(embedding_dim),name='pos_dense_2')(pos_ffn_output)
     pos_ffn_output = layers.TimeDistributed(layers.Dropout(dropout_prob))(pos_ffn_output)
     pos_ffn_output = layers.TimeDistributed(layers.LayerNormalization(epsilon=1e-6))(pos_attention_output + pos_ffn_output)
-    pos_transformer_embedding = layers.TimeDistributed(layers.Lambda(lambda x: tf.reduce_mean(x, axis=2)),name='pos_transformer_embedding')(pos_ffn_output)
-    ################# /transforemr mean pooling #####################
+    pos_transformer_embedding = layers.TimeDistributed(layers.Lambda(lambda x: tf.reduce_mean(x, axis=1)),name='pos_transformer_embedding')(pos_ffn_output)
+    ################# / Essay transforemr mean pooling #####################
 
     linguistic_input = layers.Input((linguistic_feature_count,), name='linguistic_input')
     readability_input = layers.Input((readability_feature_count,), name='readability_input')
 
-    pos_MA_list = [MultiHeadAttention(embedding_dim,num_heads)(pos_transformer_embedding) for _ in range(output_dim)]#(pos_avg_zcnn) for _ in range(output_dim)]
+    ################ Essay doc transformer mean pooling #####################
+    pos_doc_MA_layer  = MultiHeadAttention(
+        num_heads=2,
+        embedding_dim= embedding_dim,
+        dropout_rate=dropout_prob
+    )
+    pos_MA_list = [MultiHeadAttention(num_heads=2,embedding_dim= embedding_dim,dropout_rate=dropout_prob)
+                   (pos_transformer_embedding) for _ in range(output_dim)]#(pos_avg_zcnn) for _ in range(output_dim)]
     pos_MA_lstm_list = [layers.LSTM(lstm_units, return_sequences=True)(pos_MA) for pos_MA in pos_MA_list] 
     pos_avg_MA_lstm_list = [Attention()(pos_hz_lstm) for pos_hz_lstm in pos_MA_lstm_list] 
+    
+    
+    pos_doc_attention_output = [pos_doc_MA_layer(pos_transformer_embedding) for _ in range(output_dim)]
+    pos_doc_attention_output_norm = [layers.LayerNormalization(epsilon=1e-6)(pos_transformer_embedding + pos_doc_output) for pos_doc_output in pos_doc_attention_output]
+    
+    # Feed-forward network
+    pos_doc_ffn_output = [layers.Dense(cnn_filters, activation='relu')(pos_doc_norm) for pos_doc_norm in pos_doc_attention_output_norm]
+    pos_doc_ffn_output = [layers.Dense(embedding_dim)(pos_doc_output)for pos_doc_output in pos_doc_ffn_output]
+    pos_doc_ffn_output = [layers.Dropout(dropout_prob)(pos_doc_output)for pos_doc_output in pos_doc_ffn_output]
+    pos_doc_ffn_output = [layers.LayerNormalization(epsilon=1e-6)(pos_doc_attention_output[i] + pos_doc_ffn_output[i]) for i in range(output_dim)]
+    pos_doc_transformer_embedding = [layers.Lambda(lambda x: tf.reduce_mean(x, axis=1))(pos_doc_output) for pos_doc_output in pos_doc_ffn_output]
 
+    ################/ Essay doc transformer mean pooling #####################
+    
     ### 2. Prompt Representation
     # word embedding
     prompt_word_input = layers.Input(shape=(maxnum*maxlen,), dtype='int32', name='prompt_word_input')
@@ -169,7 +189,7 @@ def build_ProTACT(pos_vocab_size, vocab_size, maxnum, maxlen, readability_featur
     # prompt_zcnn = layers.TimeDistributed(layers.Conv1D(cnn_filters, cnn_kernel_size, padding='valid'), name='prompt_zcnn')(prompt_resh_W)
     # prompt_avg_zcnn = layers.TimeDistributed(Attention(), name='prompt_avg_zcnn')(prompt_zcnn)
     
-    ################# transforemr mean pooling/ #####################
+    ################# prompt transforemr mean pooling/ #####################
     # Multi-head attention
     prompt_multi_head_attention_layer = MultiHeadAttention(
         num_heads=2,
@@ -184,16 +204,29 @@ def build_ProTACT(pos_vocab_size, vocab_size, maxnum, maxlen, readability_featur
     prompt_ffn_output = layers.TimeDistributed(layers.Dense(embedding_dim),name='prompt_dense_2')(prompt_ffn_output)
     prompt_ffn_output = layers.TimeDistributed(layers.Dropout(dropout_prob))(prompt_ffn_output)
     prompt_ffn_output = layers.TimeDistributed(layers.LayerNormalization(epsilon=1e-6))(prompt_attention_output + prompt_ffn_output)
-    prompt_transformer_embedding = layers.TimeDistributed(layers.Lambda(lambda x: tf.reduce_mean(x, axis=2)),name='prompt_transformer_embedding')(prompt_ffn_output)
-    ################# /transforemr mean pooling #####################
+    prompt_transformer_embedding = layers.TimeDistributed(layers.Lambda(lambda x: tf.reduce_mean(x, axis=1)),name='prompt_transformer_embedding')(prompt_ffn_output)
+    ################# /prompt transforemr mean pooling #####################
     
-
     
-    prompt_MA_list = MultiHeadAttention(embedding_dim, num_heads)(prompt_transformer_embedding)#(prompt_avg_zcnn)
-    prompt_MA_lstm_list = layers.LSTM(lstm_units, return_sequences=True)(prompt_MA_list) 
-    prompt_avg_MA_lstm_list = Attention()(prompt_MA_lstm_list)
+    ################# prompt transforemr mean pooling/ #####################
+    # Multi-head attention
+    prompt_doc_multi_head_attention_layer = MultiHeadAttention(
+        num_heads=2,
+        embedding_dim= embedding_dim,
+        dropout_rate=dropout_prob
+    )
+    prompt_doc_attention_output = prompt_doc_multi_head_attention_layer(prompt_transformer_embedding)
+    prompt_doc_attention_output_norm = layers.LayerNormalization(epsilon=1e-6)(prompt_transformer_embedding + prompt_doc_attention_output)
     
-    query = prompt_avg_MA_lstm_list
+    # Feed-forward network
+    prompt_doc_ffn_output = layers.Dense(cnn_filters, activation='relu')(prompt_doc_attention_output_norm)
+    prompt_doc_ffn_output = layers.Dense(embedding_dim)(prompt_doc_ffn_output)
+    prompt_doc_ffn_output = layers.Dropout(dropout_prob)(prompt_doc_ffn_output)
+    prompt_doc_ffn_output = layers.LayerNormalization(epsilon=1e-6)(prompt_doc_attention_output + prompt_doc_ffn_output)
+    prompt_doc_transformer_embedding = layers.Lambda(lambda x: tf.reduce_mean(x, axis=1))(prompt_doc_ffn_output)
+    query = prompt_doc_transformer_embedding
+    ################# /prompt transforemr mean pooling #####################
+    
 
     # 여기에서 합쳐진다.
     es_pr_MA_list = [MultiHeadAttention_PE(embedding_dim,num_heads)(pos_avg_MA_lstm_list[i], query) for i in range(output_dim)]
