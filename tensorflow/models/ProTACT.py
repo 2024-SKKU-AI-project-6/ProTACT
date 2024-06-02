@@ -8,6 +8,20 @@ from custom_layers.attention import Attention
 from custom_layers.multiheadattention_pe import MultiHeadAttention_PE
 from custom_layers.multiheadattention import MultiHeadAttention
 
+
+class MaskedSelection(layers.Layer):
+    def __init__(self, **kwargs):
+        super(MaskedSelection, self).__init__(**kwargs)
+
+    def call(self, inputs):
+        data, mask = inputs
+        masked_data = tf.boolean_mask(data, mask, axis=-2)
+        return masked_data
+
+    def compute_output_shape(self, input_shape):
+        # Assuming input_shape is a tuple (data_shape, mask_shape)
+        return input_shape[0]
+
 def correlation_coefficient(trait1, trait2):
     x = trait1
     y = trait2
@@ -145,18 +159,24 @@ def build_ProTACT(pos_vocab_size, vocab_size, maxnum, maxlen, readability_featur
     es_pr_avg_lstm_list = [Attention()(pos_hz_lstm) for pos_hz_lstm in es_pr_MA_lstm_list]
     es_pr_feat_concat = [layers.Concatenate()([rep, linguistic_input, readability_input]) # concatenate with non-prompt-specific features
                                  for rep in es_pr_avg_lstm_list]
-    pos_avg_hz_lstm = tf.concat([layers.Reshape((1, lstm_units + linguistic_feature_count + readability_feature_count))(rep)
-                                 for rep in es_pr_feat_concat], axis=-2)
+    
+    reshaped_layers = [
+        layers.Reshape((1, lstm_units + linguistic_feature_count + readability_feature_count))(rep)
+        for rep in es_pr_feat_concat
+    ]
+    pos_avg_hz_lstm = layers.Concatenate(axis=-2)(reshaped_layers)
+    
+    
 
     # 1-9 까지의 traits 을 중심으로 점수 예측을 한다.
     final_preds = []
     for index, rep in enumerate(range(output_dim)):
         mask = np.array([True for _ in range(output_dim)])
         mask[index] = False
-        non_target_rep = tf.boolean_mask(pos_avg_hz_lstm, mask, axis=-2)
+        non_target_rep =  MaskedSelection()([pos_avg_hz_lstm, mask])
         target_rep = pos_avg_hz_lstm[:, index:index+1]
         att_attention = layers.Attention()([target_rep, non_target_rep])
-        attention_concat = tf.concat([target_rep, att_attention], axis=-1)
+        attention_concat = layers.Concatenate(axis=-1)([target_rep, att_attention])
         attention_concat = layers.Flatten()(attention_concat)
         final_pred = layers.Dense(units=1, activation='sigmoid')(attention_concat)
         final_preds.append(final_pred)
