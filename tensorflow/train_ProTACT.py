@@ -3,7 +3,7 @@ import time
 import argparse
 import random
 import numpy as np
-from models.ProTACT import build_ProTACT
+from models.SkipFlow_BiGRU import build_ProTACT
 import tensorflow as tf
 from configs.configs import Configs
 from utils.read_data_pr import read_pos_vocab, read_word_vocab, read_prompts_we, read_essays_prompts, read_prompts_pos
@@ -54,6 +54,8 @@ def main():
     vocab_size = configs.VOCAB_SIZE
     # epochs = configs.EPOCHS
     batch_size = configs.BATCH_SIZE
+    output_path = configs.OUTPUT_PATH
+    os.makedirs(output_path+f"{model_name}_{epochs}/")
     
     print("Numhead : ", num_heads, " | Features : ", features_path, " | Pos_emb : ", configs.EMBEDDING_DIM)
 
@@ -181,7 +183,7 @@ def main():
                       configs, Y_train.shape[1], num_heads, embed_table)
 
     evaluator = AllAttEvaluator(test_prompt_id, dev_data['prompt_ids'], test_data['prompt_ids'], dev_features_list,
-                                test_features_list, Y_dev, Y_test, seed)
+                                test_features_list, Y_dev, Y_test, seed, output_path+f"{model_name}_{epochs}/")
 
     evaluator.evaluate(model, -1, print_info=True)
 
@@ -228,13 +230,13 @@ def main():
         callbacks=[custom_hist, checkpoint]
     )
 
-    '''# show the loss as the graph
+    # show the loss as the graph
     fig, loss_graph = plt.subplots()
     loss_graph.plot(custom_hist.train_loss,'y',label='train loss')
     loss_graph.plot(custom_hist.val_loss,'r',label='val loss')
     loss_graph.set_xlabel('epoch')
     loss_graph.set_ylabel('loss')
-    plt.savefig(str('images/protact/test_prompt_'+ str(test_prompt_id) + '_seed_' + str(seed) + '_loss.png'))'''
+    plt.savefig(f'images/{model_name}_{epochs}_loss.png')
 
 
 if __name__ == '__main__':

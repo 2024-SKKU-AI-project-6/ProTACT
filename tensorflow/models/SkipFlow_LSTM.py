@@ -126,7 +126,7 @@ def build_ProTACT(pos_vocab_size, vocab_size, maxnum, maxlen, readability_featur
     readability_input = layers.Input((readability_feature_count,), name='readability_input')
 
     pos_MA_list = [MultiHeadAttention(100,num_heads)(pos_avg_zcnn) for _ in range(output_dim)]
-    pos_avg_MA_lstm_list = [SkipFlow(lstm_dim=lstm_units, k = 4, maxlen=maxlen, eta=13, delta=50)(pos_MA) for pos_MA in pos_MA_list] 
+    pos_avg_MA_lstm_list = [SkipFlow(lstm_dim=lstm_units, model_type = "lstm", k = 4, maxlen=maxlen, eta=13, delta=50)(pos_MA) for pos_MA in pos_MA_list] 
 
     ### 2. Prompt Representation
     # word embedding

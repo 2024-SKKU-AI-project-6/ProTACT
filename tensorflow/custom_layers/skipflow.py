@@ -1,14 +1,14 @@
 import numpy as np
 import tensorflow.keras.backend as K
 import tensorflow as tf
-from tensorflow.keras.layers import Layer, InputSpec, Input, Embedding, LSTM, Dense, Lambda, Concatenate
+import tensorflow.keras.layers as layers
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras import initializers
 from scipy import stats
 
 
 
-class NeuralTensorlayer(Layer):
+class NeuralTensorlayer(layers.Layer):
 	def __init__(self,output_dim,input_dim=None, **kwargs):
 		self.output_dim=output_dim
 		self.input_dim=input_dim
@@ -52,11 +52,11 @@ class NeuralTensorlayer(Layer):
 
 
 
-class TemporalMeanPooling(Layer):
+class TemporalMeanPooling(layers.Layer):
 	def __init__(self, **kwargs):
 		super(TemporalMeanPooling,self).__init__(**kwargs)
 		self.supports_masking=True
-		self.input_spec=InputSpec(ndim=3)
+		self.input_spec=layers.InputSpec(ndim=3)
 
 	def call(self,x,mask=None):
 		if mask is None:
@@ -73,10 +73,11 @@ class TemporalMeanPooling(Layer):
 
 
 
-class SkipFlow(Layer):
-    def __init__(self, lstm_dim, k, maxlen, eta, delta, **kwargs):
+class SkipFlow(layers.Layer):
+    def __init__(self, lstm_dim, model_type, k, maxlen, eta, delta, **kwargs):
         super(SkipFlow, self).__init__(**kwargs)
         self.lstm_dim = lstm_dim
+        self.model_type = model_type
         self.k = k
         self.maxlen = maxlen
         self.eta = eta
@@ -87,18 +88,20 @@ class SkipFlow(Layer):
     def build_model(self):
         self.temporal_mean_pooling = TemporalMeanPooling()
         self.neural_tensor_layer = NeuralTensorlayer(output_dim=self.k, input_dim=self.lstm_dim)
-        self.lstm_layer = LSTM(self.lstm_dim, return_sequences=True)
-        self.concat_layer = Concatenate()
-        self.dense_layer = Dense(1, activation="sigmoid")
-        
+        if (self.model_type == "lstm"):
+            self.rnn_layer = layers.LSTM(self.lstm_dim, return_sequences=True)
+        elif (self.model_type == "bi-gru"):
+            self.rnn_layer = layers.Bidirectional(layers.GRU(self.lstm_units, return_sequences=True))
+        self.concat_layer = layers.Concatenate()
+        self.dense_layer = layers.Dense(1, activation="sigmoid")
         
     def call(self, inputs):
-        hidden_states = self.lstm_layer(inputs)
+        hidden_states = self.rnn_layer(inputs)
         htm = TemporalMeanPooling()(hidden_states)
         pairs = [((self.eta + i * self.delta) % self.maxlen, (self.eta + i * self.delta + self.delta) % self.maxlen)
                  for i in range(self.maxlen // self.delta)]
-        hidden_pairs = [(Lambda(lambda t: t[:, p[0], :])(hidden_states),
-                         Lambda(lambda t: t[:, p[1], :])(hidden_states)) for p in pairs]
+        hidden_pairs = [(layers.Lambda(lambda t: t[:, p[0], :])(hidden_states),
+                         layers.Lambda(lambda t: t[:, p[1], :])(hidden_states)) for p in pairs]
         coherence = [self.dense_layer(self.neural_tensor_layer([hp[0], hp[1]])) for hp in hidden_pairs]
         co_tm = self.concat_layer(coherence[:] + [htm])
         return co_tm

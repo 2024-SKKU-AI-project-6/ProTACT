@@ -1,3 +1,4 @@
+import pickle
 from metrics.metrics import *
 from utils.general_utils import separate_attributes_for_scoring, separate_and_rescale_attributes_for_scoring
 
@@ -11,7 +12,7 @@ os.makedirs(dir, exist_ok=True)
 class Evaluator():
 
     def __init__(self, test_prompt_id, X_dev_prompt_ids, X_test_prompt_ids, dev_features_list, test_features_list,
-                 Y_dev, Y_test, seed):
+                 Y_dev, Y_test, seed, output_path):
         self.test_prompt_id = test_prompt_id
         self.dev_features_list = dev_features_list
         self.test_features_list = test_features_list
@@ -25,6 +26,7 @@ class Evaluator():
         self.best_dev_kappa_set = {}
         self.best_test_kappa_set = {}
         self.seed = seed
+        self.result_path = output_path
 
     @staticmethod
     def calc_pearson(pred, original):
@@ -103,6 +105,10 @@ class Evaluator():
             print('[BEST TEST] {} QWK: {}'.format(att, round(self.best_test_kappa_set[att], 3)))
         print(
             '--------------------------------------------------------------------------------------------------------------------------')
+        with open(self.result_path+f"test_{self.current_epoch}.pkl", 'wb') as f:
+            pickle.dump(self.kappa_test, f, pickle.HIGHEST_PROTOCOL)
+        
+        
 
     def print_final_info(self):
         print('[BEST TEST] AVG QWK: {}, {{epoch}}: {}'.format(round(self.best_test_kappa_mean, 3), self.best_dev_epoch))
@@ -110,3 +116,6 @@ class Evaluator():
             print('[BEST TEST] {} QWK: {}'.format(att, round(self.best_test_kappa_set[att], 3)))
         print(
             '--------------------------------------------------------------------------------------------------------------------------')
+        with open(self.result_path+f"best_test_{self.best_dev_epoch}.pkl", 'wb') as f:
+            pickle.dump(self.best_test_kappa_set, f, pickle.HIGHEST_PROTOCOL)
+        

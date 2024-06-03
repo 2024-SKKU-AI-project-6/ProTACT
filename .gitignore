@@ -1,4 +1,7 @@
 glove
 checkpoints
+outputs
+images
 __pycache__
 *.sh
+*.zip

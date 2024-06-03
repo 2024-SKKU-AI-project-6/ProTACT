@@ -11,6 +11,13 @@ from utils.general_utils import get_scaled_down_scores, pad_hierarchical_text_se
 from evaluators.multitask_evaluator_all_attributes import Evaluator as AllAttEvaluator
 from tensorflow import keras
 import matplotlib.pyplot as plt
+from metrics.metrics import *
+
+
+
+def calc_kappa(pred, original, weight='quadratic'):
+        kappa_score = kappa(original, pred, weight)
+        return kappa_score
 
 
 
@@ -23,10 +30,12 @@ def main():
                         help='name of model')
     parser.add_argument('--num_heads', type=int, default=2, help='set the number of heads in Multihead Attention')
     parser.add_argument('--features_path', type=str, default='data/hand_crafted_v3.csv')
+    parser.add_argument('--epochs', type=int, default=50)
     args = parser.parse_args()
     test_prompt_id = args.test_prompt_id
     seed = args.seed
     num_heads = args.num_heads
+    epochs = args.epochs
     features_path = args.features_path + str(test_prompt_id) + '.csv'
 
     np.random.seed(seed)
@@ -50,7 +59,7 @@ def main():
     readability_path = configs.READABILITY_PATH
     prompt_path = configs.PROMPT_PATH
     vocab_size = configs.VOCAB_SIZE
-    epochs = configs.EPOCHS
+    # epochs = configs.EPOCHS
     batch_size = configs.BATCH_SIZE
     
     print("Numhead : ", num_heads, " | Features : ", features_path, " | Pos_emb : ", configs.EMBEDDING_DIM)
@@ -119,21 +128,25 @@ def main():
                       X_test_readability.shape[1],
                       X_test_linguistic_features.shape[1],
                       configs, Y_test.shape[1], num_heads, embed_table)
+    
+    Y_test_org = separate_and_rescale_attributes_for_scoring(Y_test, test_data['prompt_ids'])
+    
+    test_mean_list = []
         
-    for epoch in range(epochs):
+    for epoch in range(1, epochs+1):
         model.load_weights(f"{checkpoint_path}{model_name}/{model_name}_{epoch}.weights.h5")
         test_pred = model.predict(test_features_list, batch_size=32)
         test_pred_dict = separate_and_rescale_attributes_for_scoring(test_pred, test_data['prompt_ids'])
-        print(test_pred_dict)
+        kappa_test = {key: calc_kappa(test_pred_dict[key], Y_test_org[key]) for key in
+                         test_pred_dict.keys()}
+        test_kappa_mean = np.mean(list(kappa_test.values()))
+        test_mean_list.append(test_kappa_mean)
+        
+    if not os.path.exists('images'):
+        os.makedirs('images')
 
-    '''# show the loss as the graph
-    fig, loss_graph = plt.subplots()
-    loss_graph.plot(custom_hist.train_loss,'y',label='train loss')
-    loss_graph.plot(custom_hist.val_loss,'r',label='val loss')
-    loss_graph.set_xlabel('epoch')
-    loss_graph.set_ylabel('loss')
-    plt.savefig(str('images/protact/test_prompt_'+ str(test_prompt_id) + '_seed_' + str(seed) + '_loss.png'))'''
-
+    plt.plot(range(len(test_mean_list)), test_mean_list)
+    plt.savefig(f"images/{model_name}.png")
 
 if __name__ == '__main__':
     main()

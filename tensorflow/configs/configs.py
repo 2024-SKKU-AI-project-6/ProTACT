@@ -15,4 +15,4 @@ class Configs:
     BATCH_SIZE = 32
     OUTPUT_PATH = './../outputs/'
     CHECKPOINT_PATH = "./../checkpoints/"
-    MODEL_NAME = "skipflow_3"
+    MODEL_NAME = "baseline"
