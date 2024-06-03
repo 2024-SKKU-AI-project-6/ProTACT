@@ -7,7 +7,7 @@ from custom_layers.zeromasking import ZeroMaskedEntries
 from custom_layers.attention import Attention
 from custom_layers.multiheadattention_pe import MultiHeadAttention_PE
 from custom_layers.multiheadattention import MultiHeadAttention
-
+from custom_layers.positionalEncoding import positionalEncoding
 
 class MaskedSelection(layers.Layer):
     def __init__(self, **kwargs):
@@ -102,6 +102,11 @@ def total_loss(y_true, y_pred):
 
 
 
+
+
+
+
+
 def build_ProTACT(pos_vocab_size, vocab_size, maxnum, maxlen, readability_feature_count,
               linguistic_feature_count, configs, output_dim, num_heads, embedding_weights):
     embedding_dim = configs.EMBEDDING_DIM # 50
@@ -113,17 +118,30 @@ def build_ProTACT(pos_vocab_size, vocab_size, maxnum, maxlen, readability_featur
     dropout_prob = 0.1
     dff = 50  # Dimensionality of the feed-forward layer
     
+    
+    
+    
     ### 1. Essay Representation
     pos_input = layers.Input(shape=(maxnum*maxlen,), dtype='int32', name='pos_input')
     pos_x = layers.Embedding(output_dim=embedding_dim, input_dim=pos_vocab_size, input_length=maxnum*maxlen,
                              weights=None, mask_zero=True, name='pos_x')(pos_input)
+    
     pos_x_maskedout = ZeroMaskedEntries(name='pos_x_maskedout')(pos_x)
-    pos_drop_x = layers.Dropout(dropout_prob, name='pos_drop_x')(pos_x_maskedout)
+    # pos_word_positional_encoding=tf.tile(word_positional_encoding, [tf.shape(pos_x_maskedout)[0], 1, 1])
+    pos_positional_encoding_layer = positionalEncoding(maxlen, embedding_dim,True)
+    pos_positional_encoding = pos_positional_encoding_layer(pos_x_maskedout)
+    
+    pos_word_emb = layers.Add()([pos_x_maskedout,pos_positional_encoding])
+    pos_drop_x = layers.Dropout(dropout_prob, name='pos_drop_x')(pos_word_emb)
     pos_resh_W = layers.Reshape((maxnum, maxlen, embedding_dim), name='pos_resh_W')(pos_drop_x) # (97, 50, 50)
     # pos_zcnn = layers.TimeDistributed(layers.Conv1D(cnn_filters, cnn_kernel_size, padding='valid'), name='pos_zcnn')(pos_resh_W)
     # pos_avg_zcnn = layers.TimeDistributed(Attention(), name='pos_avg_zcnn')(pos_zcnn)
     
+    
     ################# Essay transforemr mean pooling/ #####################
+    
+    
+    
     # Multi-head attention
     pos_multi_head_attention_layer = MultiHeadAttention(
         num_heads=2,
@@ -144,14 +162,18 @@ def build_ProTACT(pos_vocab_size, vocab_size, maxnum, maxlen, readability_featur
     linguistic_input = layers.Input((linguistic_feature_count,), name='linguistic_input')
     readability_input = layers.Input((readability_feature_count,), name='readability_input')
 
-    ################ Essay doc transformer mean pooling #####################
+    ################ Essay doc transformer mean pooling /#####################
+    # pos_sentence_positional_encoding=tf.tile(sentence_positional_encoding, [tf.shape(pos_transformer_embedding), 1, 1])
+    pos_sentence_positional_encoding_layer = positionalEncoding(maxnum, embedding_dim)
+    pos_sentence_positional_encoding = pos_sentence_positional_encoding_layer(pos_transformer_embedding)
+    pos_sentence_emb = layers.Add()([pos_transformer_embedding,pos_sentence_positional_encoding])
     pos_doc_MA_layer  = MultiHeadAttention(
         num_heads=2,
         embedding_dim= embedding_dim,
         dropout_rate=dropout_prob
     )
     pos_MA_list = [MultiHeadAttention(num_heads=2,embedding_dim= embedding_dim,dropout_rate=dropout_prob)
-                   (pos_transformer_embedding) for _ in range(output_dim)]#(pos_avg_zcnn) for _ in range(output_dim)]
+                   (pos_sentence_emb) for _ in range(output_dim)]#(pos_avg_zcnn) for _ in range(output_dim)]
     pos_MA_lstm_list = [layers.LSTM(lstm_units, return_sequences=True)(pos_MA) for pos_MA in pos_MA_list] 
     pos_avg_MA_lstm_list = [Attention()(pos_hz_lstm) for pos_hz_lstm in pos_MA_lstm_list] 
     
@@ -181,15 +203,17 @@ def build_ProTACT(pos_vocab_size, vocab_size, maxnum, maxlen, readability_featur
                              weights=None, mask_zero=True, name='pos_prompt')(prompt_pos_input)
     prompt_pos_maskedout = ZeroMaskedEntries(name='prompt_pos_maskedout')(prompt_pos) 
     
-    # add word + pos embedding
-    prompt_emb = tf.keras.layers.Add()([prompt_maskedout, prompt_pos_maskedout])
-    
+    # add word + pos embedding + positional embedding
+    # prompt_word_positional_encoding=tf.tile(word_positional_encoding, [tf.shape(prompt_pos_maskedout)[0], 1, 1])
+    prompt_positional_encoding_layer = positionalEncoding(maxlen, embedding_dim,True)
+    prompt_positional_encoding = prompt_positional_encoding_layer(pos_x_maskedout)
+    prompt_emb = layers.Add()([prompt_maskedout, prompt_pos_maskedout,prompt_positional_encoding])
     prompt_drop_x = layers.Dropout(dropout_prob, name='prompt_drop_x')(prompt_emb)
     prompt_resh_W = layers.Reshape((maxnum, maxlen, embedding_dim), name='prompt_resh_W')(prompt_drop_x)
     # prompt_zcnn = layers.TimeDistributed(layers.Conv1D(cnn_filters, cnn_kernel_size, padding='valid'), name='prompt_zcnn')(prompt_resh_W)
     # prompt_avg_zcnn = layers.TimeDistributed(Attention(), name='prompt_avg_zcnn')(prompt_zcnn)
     
-    ################# prompt transforemr mean pooling/ #####################
+    ################# prompt sentence transforemr mean pooling/ #####################
     # Multi-head attention
     prompt_multi_head_attention_layer = MultiHeadAttention(
         num_heads=2,
@@ -205,17 +229,21 @@ def build_ProTACT(pos_vocab_size, vocab_size, maxnum, maxlen, readability_featur
     prompt_ffn_output = layers.TimeDistributed(layers.Dropout(dropout_prob))(prompt_ffn_output)
     prompt_ffn_output = layers.TimeDistributed(layers.LayerNormalization(epsilon=1e-6))(prompt_attention_output + prompt_ffn_output)
     prompt_transformer_embedding = layers.TimeDistributed(layers.Lambda(lambda x: tf.reduce_mean(x, axis=1)),name='prompt_transformer_embedding')(prompt_ffn_output)
-    ################# /prompt transforemr mean pooling #####################
+    ################# /prompt sentence transforemr mean pooling #####################
     
     
-    ################# prompt transforemr mean pooling/ #####################
+    ################# prompt doc transforemr mean pooling/ #####################
+    # prompt_sentence_positional_encoding=tf.tile(sentence_positional_encoding, [tf.shape(prompt_transformer_embedding)[0], 1, 1])
+    prompt_sentence_positional_encoding_layer = positionalEncoding(maxnum, embedding_dim)
+    prompt_sentence_positional_encoding = prompt_sentence_positional_encoding_layer(prompt_transformer_embedding)
+    prompt_sentence_emb = layers.Add()([prompt_transformer_embedding,prompt_sentence_positional_encoding])
     # Multi-head attention
     prompt_doc_multi_head_attention_layer = MultiHeadAttention(
         num_heads=2,
         embedding_dim= embedding_dim,
         dropout_rate=dropout_prob
     )
-    prompt_doc_attention_output = prompt_doc_multi_head_attention_layer(prompt_transformer_embedding)
+    prompt_doc_attention_output = prompt_doc_multi_head_attention_layer(prompt_sentence_emb)
     prompt_doc_attention_output_norm = layers.LayerNormalization(epsilon=1e-6)(prompt_transformer_embedding + prompt_doc_attention_output)
     
     # Feed-forward network
@@ -225,7 +253,7 @@ def build_ProTACT(pos_vocab_size, vocab_size, maxnum, maxlen, readability_featur
     prompt_doc_ffn_output = layers.LayerNormalization(epsilon=1e-6)(prompt_doc_attention_output + prompt_doc_ffn_output)
     prompt_doc_transformer_embedding = layers.Lambda(lambda x: tf.reduce_mean(x, axis=1))(prompt_doc_ffn_output)
     query = prompt_doc_transformer_embedding
-    ################# /prompt transforemr mean pooling #####################
+    ################# /prompt doc transforemr mean pooling #####################
     
 
     # 여기에서 합쳐진다.
