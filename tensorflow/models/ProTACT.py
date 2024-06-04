@@ -7,7 +7,7 @@ from custom_layers.zeromasking import ZeroMaskedEntries
 from custom_layers.attention import Attention
 from custom_layers.multiheadattention_pe import MultiHeadAttention_PE
 from custom_layers.multiheadattention import MultiHeadAttention
-
+from custom_layers.positionalEncoding import PositionalEncoding
 
 class MaskedSelection(layers.Layer):
     def __init__(self, **kwargs):
@@ -118,12 +118,17 @@ def build_ProTACT(pos_vocab_size, vocab_size, maxnum, maxlen, readability_featur
     pos_x = layers.Embedding(output_dim=embedding_dim, input_dim=pos_vocab_size, input_length=maxnum*maxlen,
                              weights=None, mask_zero=True, name='pos_x')(pos_input)
     pos_x_maskedout = ZeroMaskedEntries(name='pos_x_maskedout')(pos_x)
-    pos_drop_x = layers.Dropout(dropout_prob, name='pos_drop_x')(pos_x_maskedout)
+    # positional encoding shape = (maxnum * maxlen) (embedding_dim)
+    pos_positional_encoding_layer = PositionalEncoding(maxlen, embedding_dim,True)
+    pos_positional_encoding = pos_positional_encoding_layer(pos_x_maskedout)
+    
+    pos_drop_x = layers.Dropout(dropout_prob, name='pos_drop_x')(pos_positional_encoding)
     pos_resh_W = layers.Reshape((maxnum, maxlen, embedding_dim), name='pos_resh_W')(pos_drop_x) # (97, 50, 50)
     # pos_zcnn = layers.TimeDistributed(layers.Conv1D(cnn_filters, cnn_kernel_size, padding='valid'), name='pos_zcnn')(pos_resh_W)
     # pos_avg_zcnn = layers.TimeDistributed(Attention(), name='pos_avg_zcnn')(pos_zcnn)
     
     ################# transforemr mean pooling/ #####################
+    
     # Multi-head attention
     pos_multi_head_attention_layer = MultiHeadAttention(
         num_heads=2,
@@ -161,8 +166,11 @@ def build_ProTACT(pos_vocab_size, vocab_size, maxnum, maxlen, readability_featur
                              weights=None, mask_zero=True, name='pos_prompt')(prompt_pos_input)
     prompt_pos_maskedout = ZeroMaskedEntries(name='prompt_pos_maskedout')(prompt_pos) 
     
+    prompt_positional_encoding_layer = PositionalEncoding(maxlen, embedding_dim,True)
+    prompt_positional_encoding = prompt_positional_encoding_layer(prompt_pos_maskedout)
+    
     # add word + pos embedding
-    prompt_emb = tf.keras.layers.Add()([prompt_maskedout, prompt_pos_maskedout])
+    prompt_emb = tf.keras.layers.Add()([prompt_maskedout, prompt_pos_maskedout,prompt_positional_encoding])
     
     prompt_drop_x = layers.Dropout(dropout_prob, name='prompt_drop_x')(prompt_emb)
     prompt_resh_W = layers.Reshape((maxnum, maxlen, embedding_dim), name='prompt_resh_W')(prompt_drop_x)
