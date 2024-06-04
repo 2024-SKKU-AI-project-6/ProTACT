@@ -121,8 +121,9 @@ def build_ProTACT(pos_vocab_size, vocab_size, maxnum, maxlen, readability_featur
     # positional encoding shape = (maxnum * maxlen) (embedding_dim)
     pos_positional_encoding_layer = PositionalEncoding(maxlen, embedding_dim,True)
     pos_positional_encoding = pos_positional_encoding_layer(pos_x_maskedout)
+    pos_x_embedding = tf.keras.layers.Add()([pos_x_maskedout,pos_positional_encoding ])
     
-    pos_drop_x = layers.Dropout(dropout_prob, name='pos_drop_x')(pos_positional_encoding)
+    pos_drop_x = layers.Dropout(dropout_prob, name='pos_drop_x')(pos_x_embedding)
     pos_resh_W = layers.Reshape((maxnum, maxlen, embedding_dim), name='pos_resh_W')(pos_drop_x) # (97, 50, 50)
     # pos_zcnn = layers.TimeDistributed(layers.Conv1D(cnn_filters, cnn_kernel_size, padding='valid'), name='pos_zcnn')(pos_resh_W)
     # pos_avg_zcnn = layers.TimeDistributed(Attention(), name='pos_avg_zcnn')(pos_zcnn)
