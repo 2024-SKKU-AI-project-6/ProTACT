@@ -15,4 +15,4 @@ class Configs:
     BATCH_SIZE = 32
     OUTPUT_PATH = './../outputs/'
     CHECKPOINT_PATH = "./../checkpoints/"
-    MODEL_NAME = "baseline"
+    MODEL_NAME = "encoder_skipflow"

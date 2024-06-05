@@ -1,9 +1,0 @@
-numpy
-tensorflow
-transformers
-torch
-torchtext
-pandas
-nltk
-scikit-learn
-matplotlib

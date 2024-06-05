@@ -87,11 +87,12 @@ class SkipFlow(layers.Layer):
         
     def build_model(self):
         self.temporal_mean_pooling = TemporalMeanPooling()
-        self.neural_tensor_layer = NeuralTensorlayer(output_dim=self.k, input_dim=self.lstm_dim)
         if (self.model_type == "lstm"):
             self.rnn_layer = layers.LSTM(self.lstm_dim, return_sequences=True)
         elif (self.model_type == "bi-gru"):
-            self.rnn_layer = layers.Bidirectional(layers.GRU(self.lstm_units, return_sequences=True))
+            self.rnn_layer = layers.Bidirectional(layers.GRU(self.lstm_dim, return_sequences=True))
+            self.lstm_dim *= 2
+        self.neural_tensor_layer = NeuralTensorlayer(output_dim=self.k, input_dim=self.lstm_dim)
         self.concat_layer = layers.Concatenate()
         self.dense_layer = layers.Dense(1, activation="sigmoid")
         

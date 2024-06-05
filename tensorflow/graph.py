@@ -17,7 +17,7 @@ def get_args():
 
 def main():
     args = get_args()
-    model_name = "skipflow_1"
+    model_name = args.model_name
     epochs = args.epochs
     output_path = args.output_path
     
@@ -54,24 +54,6 @@ def main():
             test = pickle.load(f)
             for key in keys:
                 baseline_data[key].append(test[key])
-    
-    
-    with open("/home/pea/ProTACT/outputs/bigru.pkl", 'rb') as f:
-        test = pickle.load(f)
-        print(test[0].keys())
-        for epoch in tqdm(range(epoch)):
-            avg = []
-            for key in keys:
-                bigru[key].append(test[epoch]["TEST_"+key+"_QWK"])
-                avg.append(test[epoch]["TEST_"+key+"_QWK"])
-            bigru_2["qwk_test"].append(np.mean(avg))
-            bigru_2["train_loss"].append(test[epoch]["loss"])
-            bigru_2["epoch_times"].append(test[epoch]["epoch_time"])
-                
-    with open("/home/pea/ProTACT/outputs/training_data_epoch_50.pkl", 'rb') as f:
-        test = pickle.load(f)
-        for key in keys_2:
-            gru[key] = test[key]
             
     for key in keys:
         fig, graph = plt.subplots()
@@ -80,32 +62,6 @@ def main():
         graph.set_xlabel('epoch')
         graph.set_ylabel('QWK')
         plt.savefig(f'images/{model_name}_{key}_result.png')
-        
-    for key in keys:
-        fig, graph = plt.subplots()
-        graph.plot(baseline_data[key],'r',label='baseline')
-        graph.plot(bigru[key],'y',label="bigru")
-        graph.set_xlabel('epoch')
-        graph.set_ylabel('QWK')
-        plt.savefig(f'images/bigru_{key}_result.png')
-    
-    for key in keys:
-        fig, graph = plt.subplots()
-        graph.plot(baseline_data[key],'r',label='baseline')
-        graph.plot(data[key],'g',label=model_name)
-        graph.plot(bigru[key],'b',label="bigru")
-        graph.set_xlabel('epoch')
-        graph.set_ylabel('QWK')
-        plt.savefig(f'images/all_{key}_result.png')
-        
-    for key in ["qwk_test"]:
-        fig, graph = plt.subplots()
-        graph.plot(baseline_2[key],'r',label='baseline')
-        graph.plot(gru[key],'g',label="gru")
-        graph.plot(bigru_2[key],'b',label="bigru")
-        graph.set_xlabel('epoch')
-        graph.set_ylabel('QWK')
-        plt.savefig(f'images/gru_{key}_result.png')
         
     
     
