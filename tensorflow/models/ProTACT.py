@@ -141,7 +141,7 @@ def build_ProTACT(pos_vocab_size, vocab_size, maxnum, maxlen, readability_featur
     
     # Feed-forward network
     pos_ffn_output = layers.TimeDistributed(layers.Dense(cnn_filters, activation='relu'),name='pos_dense_1')(pos_attention_output_norm)
-    pos_ffn_output = layers.TimeDistributed(layers.Dense(embedding_dim),name='pos_dense_2')(pos_ffn_output)
+    pos_ffn_output = layers.TimeDistributed(layers.Dense(cnn_filters),name='pos_dense_2')(pos_ffn_output)
     pos_ffn_output = layers.TimeDistributed(layers.Dropout(dropout_prob))(pos_ffn_output)
     pos_ffn_output = layers.TimeDistributed(layers.LayerNormalization(epsilon=1e-6))(pos_attention_output + pos_ffn_output)
     pos_transformer_embedding = layers.TimeDistributed(layers.Lambda(lambda x: tf.reduce_mean(x, axis=1)),name='pos_transformer_embedding')(pos_ffn_output)
@@ -190,7 +190,7 @@ def build_ProTACT(pos_vocab_size, vocab_size, maxnum, maxlen, readability_featur
     
     # Feed-forward network
     prompt_ffn_output = layers.TimeDistributed(layers.Dense(cnn_filters, activation='relu'),name='prompt_dense_1')(prompt_attention_output_norm)
-    prompt_ffn_output = layers.TimeDistributed(layers.Dense(embedding_dim),name='prompt_dense_2')(prompt_ffn_output)
+    prompt_ffn_output = layers.TimeDistributed(layers.Dense(cnn_filters),name='prompt_dense_2')(prompt_ffn_output)
     prompt_ffn_output = layers.TimeDistributed(layers.Dropout(dropout_prob))(prompt_ffn_output)
     prompt_ffn_output = layers.TimeDistributed(layers.LayerNormalization(epsilon=1e-6))(prompt_attention_output + prompt_ffn_output)
     prompt_transformer_embedding = layers.TimeDistributed(layers.Lambda(lambda x: tf.reduce_mean(x, axis=1)),name='prompt_transformer_embedding')(prompt_ffn_output)
