@@ -1,0 +1,1 @@
+python graph.py --model_name skipflow_bi-gru --epochs 50
