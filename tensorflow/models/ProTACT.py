@@ -99,6 +99,7 @@ def build_ProTACT(pos_vocab_size, vocab_size, maxnum, maxlen, readability_featur
     else:
         lstm_model = 'lstm'
     
+    print('lstm_model: ', lstm_model)
     ### 1. Essay Representation
     pos_input = layers.Input(shape=(maxnum*maxlen,), dtype='int32', name='pos_input')
     pos_x = layers.Embedding(output_dim=embedding_dim, input_dim=pos_vocab_size, input_length=maxnum*maxlen,
