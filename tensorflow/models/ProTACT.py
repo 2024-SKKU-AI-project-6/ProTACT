@@ -158,6 +158,8 @@ def build_ProTACT(pos_vocab_size, vocab_size, maxnum, maxlen, readability_featur
     es_pr_MA_list = [MultiHeadAttention_PE(100,num_heads)(pos_avg_MA_lstm_list[i], query) for i in range(output_dim)]
     if lstm_model == 'bi-gru':
         es_pr_MA_lstm_list = [layers.Bidirectional(layers.GRU(lstm_units, return_sequences=True))(pos_hz_MA) for pos_hz_MA in es_pr_MA_list]
+    elif lstm_model == 'gru':
+        es_pr_MA_lstm_list = [layers.GRU(lstm_units, return_sequences=True)(pos_hz_MA) for pos_hz_MA in es_pr_MA_list]
     else:
         es_pr_MA_lstm_list = [layers.LSTM(lstm_units, return_sequences=True)(pos_hz_MA) for pos_hz_MA in es_pr_MA_list]
     
